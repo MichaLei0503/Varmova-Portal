@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { createProjectAction, initialActionState } from "@/app/(dashboard)/actions";
+import { createProjectAction } from "@/app/(dashboard)/actions";
+import { initialActionState } from "@/lib/action-state";
 import { Button, Card, CardTitle, Input, Label, Select, Textarea } from "@/components/ui";
 
 export function NewProjectForm({
