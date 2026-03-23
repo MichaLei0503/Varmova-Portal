@@ -10,16 +10,7 @@ import { generateProjectNumber } from "@/lib/project";
 import { prisma } from "@/lib/prisma";
 import { storeProjectFiles } from "@/lib/storage";
 import { projectSchema } from "@/lib/validators";
-
-export type ActionState = {
-  success: boolean;
-  message?: string;
-  errors?: Record<string, string[]>;
-};
-
-export const initialActionState: ActionState = {
-  success: false,
-};
+import type { ActionState } from "@/lib/action-state";
 
 async function persistFiles(projectId: string, uploadedById: string, files: File[]) {
   const storedFiles = await storeProjectFiles(projectId, files);
@@ -36,6 +27,7 @@ async function persistFiles(projectId: string, uploadedById: string, files: File
     })),
   });
 }
+
 
 export async function createProjectAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const session = await requireRole(["SALES", "ADMIN"]);
