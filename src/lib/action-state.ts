@@ -3,3 +3,7 @@ export type ActionState = {
   message?: string;
   errors?: Record<string, string[]>;
 };
+
+export const initialActionState: ActionState = {
+  success: false,
+};
