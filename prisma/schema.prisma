@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+  INSTALLER
+}
+
+enum ProjectStatus {
+  DRAFT
+  CREATED
+  OFFER_CREATED
+  HANDED_OVER
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum OfferStatus {
+  DRAFT
+  READY
+  ACCEPTED
+  REJECTED
+}
+
+enum NoteVisibility {
+  INTERNAL
+  SALES_ONLY
+  INSTALLER_ONLY
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  salesPartner SalesPartner?
+  installer    Installer?
+  createdProjects Project[]  @relation("ProjectCreatedBy")
+  assignedProjects Project[] @relation("ProjectAssignedInstaller")
+  notes        Note[]
+  files        FileUpload[]
+}
+
+model SalesPartner {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  companyName String
+  partnerCode String    @unique
+  phone       String?
+  region      String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects    Project[]
+}
+
+model Installer {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  companyName String
+  installerCode String  @unique
+  phone       String?
+  region      String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects    Project[] @relation("ProjectAssignedInstaller")
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String
+  phone       String
+  street      String
+  houseNumber String
+  postalCode  String
+  city        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  projects    Project[]
+}
+
+model Project {
+  id                      String        @id @default(cuid())
+  projectNumber           String        @unique
+  status                  ProjectStatus @default(CREATED)
+  productName             String        @default("Varmi")
+  implementationWindow    String
+  internalSalesNote       String?
+  buildingType            String
+  livingAreaSqm           Int
+  constructionYear        Int
+  householdSize           Int
+  currentHeatingType      String
+  annualEnergyConsumption Int?
+  hasPv                   Boolean       @default(false)
+  hasStorage              Boolean       @default(false)
+  specialNote             String?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  customerId              String
+  salesPartnerId          String?
+  installerId             String?
+  createdById             String
+  customer                Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  salesPartner            SalesPartner? @relation(fields: [salesPartnerId], references: [id], onDelete: SetNull)
+  installer               Installer?    @relation("ProjectAssignedInstaller", fields: [installerId], references: [id], onDelete: SetNull)
+  createdBy               User          @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  offer                   Offer?
+  notes                   Note[]
+  files                   FileUpload[]
+}
+
+model Offer {
+  id         String      @id @default(cuid())
+  projectId  String      @unique
+  status     OfferStatus @default(READY)
+  issueDate  DateTime    @default(now())
+  subtotal   Decimal     @db.Decimal(10, 2)
+  total      Decimal     @db.Decimal(10, 2)
+  hintText   String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items      OfferItem[]
+}
+
+model OfferItem {
+  id          String   @id @default(cuid())
+  offerId     String
+  label       String
+  description String?
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  totalPrice  Decimal  @db.Decimal(10, 2)
+  sortOrder   Int      @default(0)
+  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+}
+
+model Note {
+  id         String         @id @default(cuid())
+  projectId  String
+  authorId   String
+  content    String
+  visibility NoteVisibility @default(INTERNAL)
+  createdAt  DateTime       @default(now())
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model FileUpload {
+  id           String   @id @default(cuid())
+  projectId     String
+  uploadedById  String
+  fileName      String
+  filePath      String
+  fileType      String?
+  fileSize      Int?
+  category      String   @default("project")
+  createdAt     DateTime @default(now())
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+}
+
+model PricingConfig {
+  id                   String   @id @default(cuid())
+  productName          String   @default("Varmi")
+  basePrice            Decimal  @db.Decimal(10, 2)
+  installationFlatFee  Decimal  @db.Decimal(10, 2)
+  pvIntegrationPrice   Decimal  @db.Decimal(10, 2)
+  storageIntegrationPrice Decimal @db.Decimal(10, 2)
+  energyAuditPrice     Decimal  @db.Decimal(10, 2)
+  largeHouseThreshold  Int      @default(160)
+  largeHouseSurcharge  Decimal  @db.Decimal(10, 2)
+  hintText             String
+  updatedAt            DateTime @updatedAt
+  createdAt            DateTime @default(now())
+}
