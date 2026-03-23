@@ -37,19 +37,19 @@ enum NoteVisibility {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  passwordHash String
-  role         Role
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  salesPartner SalesPartner?
-  installer    Installer?
-  createdProjects Project[]  @relation("ProjectCreatedBy")
-  notes        Note[]
-  files        FileUpload[]
+  id              String        @id @default(cuid())
+  name            String
+  email           String        @unique
+  passwordHash    String
+  role            Role
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  salesPartner    SalesPartner?
+  installer       Installer?
+  createdProjects Project[]     @relation("ProjectCreatedBy")
+  notes           Note[]
+  files           FileUpload[]
 }
 
 model SalesPartner {
