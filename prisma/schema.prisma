@@ -48,7 +48,6 @@ model User {
   salesPartner SalesPartner?
   installer    Installer?
   createdProjects Project[]  @relation("ProjectCreatedBy")
-  assignedProjects Project[] @relation("ProjectAssignedInstaller")
   notes        Note[]
   files        FileUpload[]
 }
