@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+  --color-night: #05070d;
+  --color-copper: #e8a260;
 }
 
 html,
@@ -13,7 +15,7 @@ body {
 
 body {
   background: #f8fafc;
-  color: #0f172a;
+  color: var(--color-night);
 }
 
 * {

@@ -1,23 +1,24 @@
-import { Role } from "@prisma/client";
+import { Actor, can, Resource } from "@/lib/rbac/can";
 
-export function canAccessProject(params: {
-  role: Role;
-  userId: string;
-  installerUserId?: string | null;
-  createdById: string;
-}) {
-  const { role, userId, installerUserId, createdById } = params;
+// Dünne, domänenspezifische Wrapper um can(). Sie existieren nur, um Call-Sites
+// lesbar zu halten — die Policy-Entscheidung selbst steckt in POLICIES.
 
-  if (role === "ADMIN") return true;
-  if (role === "SALES") return createdById === userId;
-  if (role === "INSTALLER") return installerUserId === userId;
-  return false;
+export function canReadProject(actor: Actor, project: Resource) {
+  return can(actor, "project:read", project);
 }
 
-export function canUpdateStatus(role: Role) {
-  return role === "ADMIN" || role === "INSTALLER";
+export function canEditProject(actor: Actor, project: Resource) {
+  return can(actor, "project:edit", project);
 }
 
-export function canCreateProject(role: Role) {
-  return role === "ADMIN" || role === "SALES";
+export function canReadOffer(actor: Actor, offer: Resource) {
+  return can(actor, "offer:read", offer);
+}
+
+export function canCreateProject(actor: Actor) {
+  return can(actor, "project:create");
+}
+
+export function canUpdateOfferStatus(actor: Actor, offer: Resource) {
+  return can(actor, "offer:approve", offer) || can(actor, "offer:edit", offer);
 }

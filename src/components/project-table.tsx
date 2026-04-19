@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { Project, Customer, Installer, User, SalesPartner } from "@prisma/client";
+import { Customer, Offer, Organization, Project } from "@prisma/client";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDate } from "@/lib/utils";
 
 type ProjectRow = Project & {
   customer: Customer;
-  installer: (Installer & { user: User }) | null;
-  salesPartner: (SalesPartner & { user: User }) | null;
+  vpOrg: Organization;
+  ipOrg: Organization | null;
+  offer: Offer | null;
 };
 
 export function ProjectTable({ projects }: { projects: ProjectRow[] }) {
@@ -28,7 +29,7 @@ export function ProjectTable({ projects }: { projects: ProjectRow[] }) {
             {projects.map((project) => (
               <tr key={project.id}>
                 <td className="px-4 py-4">
-                  <div className="font-medium text-slate-950">{project.projectNumber}</div>
+                  <div className="font-medium text-night">{project.projectNumber}</div>
                   <div className="text-xs text-slate-500">{project.productName}</div>
                 </td>
                 <td className="px-4 py-4">
@@ -36,15 +37,14 @@ export function ProjectTable({ projects }: { projects: ProjectRow[] }) {
                   <div className="text-xs text-slate-500">{project.customer.city}</div>
                 </td>
                 <td className="px-4 py-4">
-                  {project.installer?.companyName ?? "Nicht zugeordnet"}
-                  <div className="text-xs text-slate-500">{project.installer?.user.name ?? "-"}</div>
+                  {project.ipOrg?.name ?? "Nicht zugeordnet"}
                 </td>
                 <td className="px-4 py-4">
-                  <StatusBadge status={project.status} />
+                  {project.offer ? <StatusBadge status={project.offer.status} /> : <span className="text-xs text-slate-400">Kein Angebot</span>}
                 </td>
                 <td className="px-4 py-4">{formatDate(project.updatedAt)}</td>
                 <td className="px-4 py-4 text-right">
-                  <Link href={`/projects/${project.id}`} className="font-medium text-brand hover:underline">
+                  <Link href={`/projects/${project.id}`} className="font-medium text-copper hover:underline">
                     Öffnen
                   </Link>
                 </td>

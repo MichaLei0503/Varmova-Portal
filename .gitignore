@@ -29,3 +29,9 @@ public/uploads/*
 # prisma studio
 prisma/dev.db
 prisma/dev.db-journal
+
+# claude working directory (local docs, agent artifacts)
+.claude/
+
+# typescript build cache
+tsconfig.tsbuildinfo

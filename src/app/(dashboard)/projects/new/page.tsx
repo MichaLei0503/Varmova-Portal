@@ -4,16 +4,17 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export default async function NewProjectPage() {
-  await requireRole(["SALES", "ADMIN"]);
+  await requireRole(["VP", "VP_ADMIN", "VARMOVA_ADMIN"]);
 
-  const installers = await prisma.installer.findMany({
-    include: { user: true },
-    orderBy: { companyName: "asc" },
+  const installers = await prisma.organization.findMany({
+    where: { type: "IP", status: "ACTIVE" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
   });
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Neues Projekt" description="Projekt erfassen, Angebot automatisch berechnen und Installateur zuweisen." />
+      <PageHeader title="Neues Projekt" description="Projekt erfassen, Angebot automatisch berechnen und Installationspartner zuweisen." />
       <NewProjectForm installers={installers} />
     </div>
   );

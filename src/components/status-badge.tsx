@@ -1,7 +1,7 @@
-import { ProjectStatus } from "@prisma/client";
+import { OfferStatus } from "@prisma/client";
 import { Badge } from "@/components/ui";
-import { projectStatusColors, projectStatusLabels } from "@/lib/utils";
+import { offerStatusColors, offerStatusLabels } from "@/lib/utils";
 
-export function StatusBadge({ status }: { status: ProjectStatus }) {
-  return <Badge className={projectStatusColors[status]}>{projectStatusLabels[status]}</Badge>;
+export function StatusBadge({ status }: { status: OfferStatus }) {
+  return <Badge className={offerStatusColors[status]}>{offerStatusLabels[status]}</Badge>;
 }

@@ -1,97 +1,129 @@
-import { PricingConfig } from "@prisma/client";
-
-export type PricingInput = {
-  productName: string;
-  livingAreaSqm: number;
-  annualEnergyConsumption?: number | null;
-  hasPv: boolean;
-  hasStorage: boolean;
-};
+import { ProductCatalog, ProjectScope } from "@prisma/client";
 
 export type CalculatedOfferItem = {
+  sku: string;
   label: string;
-  description?: string;
+  description?: string | null;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitCents: number;
+  totalCents: number;
   sortOrder: number;
 };
 
-function asNumber(value: PricingConfig[keyof PricingConfig]) {
-  if (typeof value === "object" && value !== null && "toNumber" in value) {
-    return (value as { toNumber: () => number }).toNumber();
-  }
-  return Number(value);
-}
+export type PricingInput = {
+  scope: ProjectScope;
+  varmiSku: string;
+  bufferSku?: string | null;
+  newThermostats?: number;
+  thermostatSku?: string | null;
+  replaceHeaters?: number;
+  heaterReplacementSku?: string | null;
+  newMeterCabinet?: boolean;
+  currentHeatingType?: string;
+};
 
-export function calculateOffer(input: PricingInput, config: PricingConfig) {
-  const items: CalculatedOfferItem[] = [
-    {
-      label: input.productName,
-      quantity: 1,
-      unitPrice: asNumber(config.basePrice),
-      totalPrice: asNumber(config.basePrice),
-      sortOrder: 1,
-    },
-    {
-      label: "Installationspauschale",
-      quantity: 1,
-      unitPrice: asNumber(config.installationFlatFee),
-      totalPrice: asNumber(config.installationFlatFee),
-      sortOrder: 2,
-    },
+export type PriceSnapshot = {
+  catalogValidFrom: string;
+  vatRatePercent: number;
+  items: ReadonlyArray<{ sku: string; priceCents: number; name: string }>;
+};
+
+export type OfferCalculation = {
+  items: CalculatedOfferItem[];
+  subtotalCents: number;
+  vatCents: number;
+  totalCents: number;
+  snapshot: PriceSnapshot;
+};
+
+const VAT_RATE_PERCENT = 19;
+
+// Bestimmt die Basis-SKUs je Auftragsumfang.
+// Datenstruktur statt Switch: eine neue Variante = ein neuer Eintrag.
+const SCOPE_BASE_SKUS: Record<ProjectScope, ReadonlyArray<string>> = {
+  HYBRID: ["MONTAGE-STD", "ELEKTRO-INSTALL"],
+  MONOVALENT_NO_STORAGE: ["MONTAGE-STD", "ELEKTRO-INSTALL"],
+  MONOVALENT_WITH_STORAGE: ["MONTAGE-STD", "ELEKTRO-INSTALL"],
+};
+
+// Heizungs-Typ → Demontage-SKU. Kein Match = keine Demontage-Position.
+const DEMONTAGE_SKU_BY_HEATING: Record<string, string> = {
+  "Gas-Brennwert": "DEMONTAGE-GAS",
+  Gasheizung: "DEMONTAGE-GAS",
+  "Öl-Heizung": "DEMONTAGE-OEL",
+  Ölheizung: "DEMONTAGE-OEL",
+};
+
+export function calculateOffer(input: PricingInput, catalog: ReadonlyArray<ProductCatalog>): OfferCalculation {
+  const bySku = new Map(catalog.map((entry) => [entry.sku, entry]));
+
+  const pick = (sku: string, quantity = 1): CalculatedOfferItem | null => {
+    const entry = bySku.get(sku);
+    if (!entry || quantity <= 0) return null;
+    return {
+      sku: entry.sku,
+      label: entry.name,
+      description: entry.description,
+      quantity,
+      unitCents: entry.priceCents,
+      totalCents: entry.priceCents * quantity,
+      sortOrder: 0,
+    };
+  };
+
+  const candidates: Array<CalculatedOfferItem | null> = [
+    pick(input.varmiSku),
+    ...SCOPE_BASE_SKUS[input.scope].map((sku) => pick(sku)),
   ];
 
-  if (input.hasPv) {
-    items.push({
-      label: "PV-Integration",
-      description: "Einbindung vorhandener PV-Anlage in das Varmi Gesamtsystem",
-      quantity: 1,
-      unitPrice: asNumber(config.pvIntegrationPrice),
-      totalPrice: asNumber(config.pvIntegrationPrice),
-      sortOrder: 3,
-    });
+  if (input.scope === "MONOVALENT_WITH_STORAGE" && input.bufferSku) {
+    candidates.push(pick(input.bufferSku));
   }
 
-  if (input.hasStorage) {
-    items.push({
-      label: "Speicherintegration",
-      description: "Berücksichtigung eines vorhandenen Energiespeichers",
-      quantity: 1,
-      unitPrice: asNumber(config.storageIntegrationPrice),
-      totalPrice: asNumber(config.storageIntegrationPrice),
-      sortOrder: 4,
-    });
+  if (input.currentHeatingType && DEMONTAGE_SKU_BY_HEATING[input.currentHeatingType]) {
+    candidates.push(pick(DEMONTAGE_SKU_BY_HEATING[input.currentHeatingType]));
   }
 
-  if ((input.annualEnergyConsumption ?? 0) > 25000) {
-    items.push({
-      label: "Energieanalyse",
-      description: "Erweiterte Vorprüfung bei erhöhtem Energieverbrauch",
-      quantity: 1,
-      unitPrice: asNumber(config.energyAuditPrice),
-      totalPrice: asNumber(config.energyAuditPrice),
-      sortOrder: 5,
-    });
+  if (input.newThermostats && input.thermostatSku) {
+    candidates.push(pick(input.thermostatSku, input.newThermostats));
   }
 
-  if (input.livingAreaSqm > config.largeHouseThreshold) {
-    items.push({
-      label: `Objektzuschlag > ${config.largeHouseThreshold} m²`,
-      description: "Zusätzlicher Projektaufwand bei größeren Objekten",
-      quantity: 1,
-      unitPrice: asNumber(config.largeHouseSurcharge),
-      totalPrice: asNumber(config.largeHouseSurcharge),
-      sortOrder: 6,
-    });
+  if (input.replaceHeaters && input.heaterReplacementSku) {
+    candidates.push(pick(input.heaterReplacementSku, input.replaceHeaters));
   }
 
-  const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
+  if (input.newMeterCabinet) {
+    candidates.push(pick("ZAEHLERSCHRANK"));
+  }
 
-  return {
-    subtotal,
-    total: subtotal,
-    hintText: config.hintText,
-    items,
+  const items = candidates
+    .filter((item): item is CalculatedOfferItem => item !== null)
+    .map((item, index) => ({ ...item, sortOrder: index + 1 }));
+
+  const subtotalCents = items.reduce((sum, item) => sum + item.totalCents, 0);
+  const vatCents = Math.round((subtotalCents * VAT_RATE_PERCENT) / 100);
+  const totalCents = subtotalCents + vatCents;
+
+  const catalogValidFrom = earliestValidFrom(catalog, items.map((i) => i.sku));
+
+  const snapshot: PriceSnapshot = {
+    catalogValidFrom,
+    vatRatePercent: VAT_RATE_PERCENT,
+    items: items.map((item) => ({
+      sku: item.sku,
+      priceCents: item.unitCents,
+      name: item.label,
+    })),
   };
+
+  return { items, subtotalCents, vatCents, totalCents, snapshot };
+}
+
+function earliestValidFrom(catalog: ReadonlyArray<ProductCatalog>, skus: ReadonlyArray<string>): string {
+  const used = catalog.filter((entry) => skus.includes(entry.sku));
+  if (used.length === 0) return new Date().toISOString();
+  return used
+    .map((entry) => entry.validFrom)
+    .reduce((earliest, current) => (current < earliest ? current : earliest))
+    .toISOString();
 }

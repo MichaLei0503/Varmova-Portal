@@ -1,58 +1,54 @@
-import { updatePricingConfigAction } from "@/app/(dashboard)/actions";
-import { Button, Card, CardTitle, Input, Label, PageHeader, Textarea } from "@/components/ui";
+import { Badge, Card, CardTitle, PageHeader } from "@/components/ui";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { formatCents, formatDate } from "@/lib/utils";
 
-export default async function PricingSettingsPage() {
-  await requireRole(["ADMIN"]);
-  const config = await prisma.pricingConfig.findFirst();
+// AP 1.0: Read-only-Sicht auf den Produktkatalog. CRUD-Pflege folgt in AP 2.8.
+export default async function ProductCatalogPage() {
+  await requireRole(["VARMOVA_ADMIN"]);
 
-  if (!config) {
-    return <div>Keine Pricing-Konfiguration gefunden.</div>;
-  }
+  const entries = await prisma.productCatalog.findMany({
+    orderBy: [{ kind: "asc" }, { sku: "asc" }],
+  });
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Preislogik & Angebotsparameter" description="Zentral konfigurierbares Pricing-Modul für das Varmi MVP." />
+      <PageHeader
+        title="Produktkatalog"
+        description="Aktuelle Preise, SKUs und Gültigkeitszeiträume. Pflege-UI folgt in Phase 2."
+      />
       <Card>
-        <CardTitle>PricingConfig</CardTitle>
-        <form action={updatePricingConfigAction} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <Label htmlFor="basePrice">Grundpreis</Label>
-            <Input id="basePrice" name="basePrice" type="number" step="0.01" defaultValue={Number(config.basePrice)} required />
-          </div>
-          <div>
-            <Label htmlFor="installationFlatFee">Installationspauschale</Label>
-            <Input id="installationFlatFee" name="installationFlatFee" type="number" step="0.01" defaultValue={Number(config.installationFlatFee)} required />
-          </div>
-          <div>
-            <Label htmlFor="pvIntegrationPrice">PV-Integration</Label>
-            <Input id="pvIntegrationPrice" name="pvIntegrationPrice" type="number" step="0.01" defaultValue={Number(config.pvIntegrationPrice)} required />
-          </div>
-          <div>
-            <Label htmlFor="storageIntegrationPrice">Speicherintegration</Label>
-            <Input id="storageIntegrationPrice" name="storageIntegrationPrice" type="number" step="0.01" defaultValue={Number(config.storageIntegrationPrice)} required />
-          </div>
-          <div>
-            <Label htmlFor="energyAuditPrice">Energieanalyse</Label>
-            <Input id="energyAuditPrice" name="energyAuditPrice" type="number" step="0.01" defaultValue={Number(config.energyAuditPrice)} required />
-          </div>
-          <div>
-            <Label htmlFor="largeHouseThreshold">Grenzwert große Objekte (m²)</Label>
-            <Input id="largeHouseThreshold" name="largeHouseThreshold" type="number" defaultValue={config.largeHouseThreshold} required />
-          </div>
-          <div>
-            <Label htmlFor="largeHouseSurcharge">Objektzuschlag</Label>
-            <Input id="largeHouseSurcharge" name="largeHouseSurcharge" type="number" step="0.01" defaultValue={Number(config.largeHouseSurcharge)} required />
-          </div>
-          <div className="xl:col-span-4">
-            <Label htmlFor="hintText">Hinweistext</Label>
-            <Textarea id="hintText" name="hintText" defaultValue={config.hintText} required />
-          </div>
-          <div className="xl:col-span-4 flex justify-end">
-            <Button type="submit">Preislogik speichern</Button>
-          </div>
-        </form>
+        <CardTitle>Einträge</CardTitle>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">SKU</th>
+                <th className="px-4 py-3">Typ</th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3 text-right">Preis netto</th>
+                <th className="px-4 py-3">Einheit</th>
+                <th className="px-4 py-3">Gültig ab</th>
+                <th className="px-4 py-3">Gültig bis</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {entries.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.sku}</td>
+                  <td className="px-4 py-3">
+                    <Badge className="border-slate-200 bg-slate-50 text-slate-700">{entry.kind}</Badge>
+                  </td>
+                  <td className="px-4 py-3 font-medium text-night">{entry.name}</td>
+                  <td className="px-4 py-3 text-right">{formatCents(entry.priceCents)}</td>
+                  <td className="px-4 py-3">{entry.unit}</td>
+                  <td className="px-4 py-3">{formatDate(entry.validFrom)}</td>
+                  <td className="px-4 py-3">{entry.validUntil ? formatDate(entry.validUntil) : "offen"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );

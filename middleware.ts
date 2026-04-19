@@ -21,15 +21,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (pathname.startsWith("/admin") && token.role !== "ADMIN") {
+  const role = token.role as string | undefined;
+
+  if (pathname.startsWith("/admin") && role !== "VARMOVA_ADMIN") {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
-  if (pathname.startsWith("/installer") && token.role !== "INSTALLER" && token.role !== "ADMIN") {
+  if (pathname.startsWith("/installer") && role !== "IP" && role !== "IP_ADMIN" && role !== "VARMOVA_ADMIN") {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
-  if (pathname.startsWith("/projects/new") && token.role !== "SALES" && token.role !== "ADMIN") {
+  if (pathname.startsWith("/projects/new") && role !== "VP" && role !== "VP_ADMIN" && role !== "VARMOVA_ADMIN") {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 

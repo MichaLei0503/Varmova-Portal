@@ -7,27 +7,77 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------- Enums ----------
+
 enum Role {
-  ADMIN
-  SALES
-  INSTALLER
+  VARMOVA_ADMIN
+  VARMOVA_PRODUCTION
+  VP_ADMIN
+  VP
+  IP_ADMIN
+  IP
+  ENERGY_ADVISOR
 }
 
-enum ProjectStatus {
+enum OrgType {
+  VARMOVA
+  VP
+  IP
+  ENERGY_ADVISOR
+}
+
+enum OrgStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+// Offer is the sole status carrier per Lastenheft Kap. 9.
+// DRAFT covers the Wizard phase before an offer number is assigned.
+enum OfferStatus {
   DRAFT
-  CREATED
   OFFER_CREATED
-  HANDED_OVER
-  IN_PROGRESS
-  COMPLETED
+  AWAITING_CUSTOMER
+  DATA_COLLECTION
+  VARMOVA_REVIEW
+  INSTALLER_ASSIGNED
+  INSTALLATION_SCHEDULED
+  INSTALLATION_DONE
+  INVOICED
+  FEEDBACK_COLLECTED
+  CLOSED
   CANCELLED
 }
 
-enum OfferStatus {
-  DRAFT
-  READY
-  ACCEPTED
-  REJECTED
+enum ProjectScope {
+  HYBRID
+  MONOVALENT_NO_STORAGE
+  MONOVALENT_WITH_STORAGE
+}
+
+enum HeatingSystem {
+  EINROHR
+  ZWEIROHR
+}
+
+enum HeatingLocation {
+  KG
+  EG
+  OG
+  DG
+  AUSSEN
+}
+
+enum WindowType {
+  EINFACH
+  DOPPEL
+  DREIFACH
+}
+
+enum CatalogKind {
+  PRODUCT
+  ACCESSORY
+  SERVICE
 }
 
 enum NoteVisibility {
@@ -36,114 +86,192 @@ enum NoteVisibility {
   INSTALLER_ONLY
 }
 
+// ---------- Models ----------
+
+model Organization {
+  id               String            @id @default(cuid())
+  type             OrgType
+  name             String
+  status           OrgStatus         @default(PENDING)
+  taxId            String?
+  address          String?
+  lat              Float?
+  lng              Float?
+  // Trusted Partner Badge gültig bis (FA-REG-020/021). null = nie zertifiziert.
+  trustedUntil     DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  users            User[]
+  installerProfile InstallerProfile?
+  vpProjects       Project[]         @relation("ProjectVpOrg")
+  ipProjects       Project[]         @relation("ProjectIpOrg")
+}
+
+model InstallerProfile {
+  orgId             String       @id
+  // Einzugsgebiet per PLZ-Liste ODER Radius um Firmensitz (FA-REG-011).
+  zipCodes          String[]
+  radiusKm          Int?
+  // SKUs aus ProductCatalog, die der IP installieren darf (FA-REG-012).
+  certifiedProducts String[]
+  weeklyCapacity    Int          @default(1)
+  ratingAvg         Float?
+
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
 model User {
-  id              String        @id @default(cuid())
-  name            String
-  email           String        @unique
-  passwordHash    String
-  role            Role
-  isActive        Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  salesPartner    SalesPartner?
-  installer       Installer?
-  createdProjects Project[]     @relation("ProjectCreatedBy")
+  id             String       @id @default(cuid())
+  name           String
+  email          String       @unique
+  passwordHash   String
+  role           Role
+  isActive       Boolean      @default(true)
+  organizationId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdProjects Project[]    @relation("ProjectCreatedBy")
   notes           Note[]
   files           FileUpload[]
-}
-
-model SalesPartner {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  companyName String
-  partnerCode String    @unique
-  phone       String?
-  region      String?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projects    Project[]
-}
-
-model Installer {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  companyName String
-  installerCode String  @unique
-  phone       String?
-  region      String?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projects    Project[] @relation("ProjectAssignedInstaller")
+  auditLogs       AuditLog[]
 }
 
 model Customer {
   id          String    @id @default(cuid())
+  salutation  String    @default("Herr")
   firstName   String
   lastName    String
   email       String
-  phone       String
+  phone       String?
   street      String
   houseNumber String
   postalCode  String
   city        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
   projects    Project[]
 }
 
 model Project {
-  id                      String        @id @default(cuid())
-  projectNumber           String        @unique
-  status                  ProjectStatus @default(CREATED)
-  productName             String        @default("Varmi")
-  implementationWindow    String
-  internalSalesNote       String?
-  buildingType            String
-  livingAreaSqm           Int
-  constructionYear        Int
-  householdSize           Int
-  currentHeatingType      String
-  annualEnergyConsumption Int?
-  hasPv                   Boolean       @default(false)
-  hasStorage              Boolean       @default(false)
-  specialNote             String?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
-  customerId              String
-  salesPartnerId          String?
-  installerId             String?
-  createdById             String
-  customer                Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  salesPartner            SalesPartner? @relation(fields: [salesPartnerId], references: [id], onDelete: SetNull)
-  installer               Installer?    @relation("ProjectAssignedInstaller", fields: [installerId], references: [id], onDelete: SetNull)
-  createdBy               User          @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
-  offer                   Offer?
-  notes                   Note[]
-  files                   FileUpload[]
+  id                        String           @id @default(cuid())
+  projectNumber             String           @unique
+  productName               String           @default("Varmi")
+
+  // Wizard Schritt 3 — Haus
+  buildingType              String
+  constructionYear          Int
+  livingAreaSqm             Int
+  units                     Int              @default(1)
+  bathrooms                 Int              @default(1)
+  bathtubs                  Int              @default(0)
+  showers                   Int              @default(1)
+  windowType                WindowType?
+  roofInsulated             Boolean?
+  exteriorInsulated         Boolean?
+
+  // Wizard Schritt 4 — Bestandsheizung
+  currentHeatingType        String
+  currentHeatingInstallYear Int?
+  currentHeatingSystem      HeatingSystem?
+  currentHeatingLocation    HeatingLocation?
+  annualEnergyConsumption   Int?
+  heatingCircuits           Int?
+  heaterTypes               String[]
+  hasPotentialEqualization  Boolean          @default(false)
+  hasSolarThermal           Boolean          @default(false)
+  hasCirculationPump        Boolean          @default(false)
+
+  // Wizard Schritt 5 — Projekt / Varmi-Konfiguration
+  scope                     ProjectScope     @default(MONOVALENT_WITH_STORAGE)
+  varmiSku                  String           @default("VARMI-9.2")
+  bufferSku                 String?
+  newThermostats            Int              @default(0)
+  thermostatSku             String?
+  replaceHeaters            Int              @default(0)
+  heaterReplacementSku      String?
+  newMeterCabinet           Boolean          @default(false)
+  requestSubsidy            Boolean          @default(false)
+  implementationWindow      String?
+  internalSalesNote         String?
+  specialNote               String?
+
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+
+  customerId                String
+  vpOrgId                   String
+  ipOrgId                   String?
+  createdById               String
+
+  customer                  Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vpOrg                     Organization     @relation("ProjectVpOrg", fields: [vpOrgId], references: [id], onDelete: Cascade)
+  ipOrg                     Organization?    @relation("ProjectIpOrg", fields: [ipOrgId], references: [id], onDelete: SetNull)
+  createdBy                 User             @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  offer                     Offer?
+  notes                     Note[]
+  files                     FileUpload[]
 }
 
 model Offer {
-  id         String      @id @default(cuid())
-  projectId  String      @unique
-  status     OfferStatus @default(READY)
-  issueDate  DateTime    @default(now())
-  subtotal   Decimal     @db.Decimal(10, 2)
-  total      Decimal     @db.Decimal(10, 2)
-  hintText   String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  items      OfferItem[]
+  id                 String      @id @default(cuid())
+  // WP<YY><NNNNNN>, gesetzt beim Übergang DRAFT → OFFER_CREATED (FA-ANG-070).
+  offerNumber        String?     @unique
+  projectId          String      @unique
+  status             OfferStatus @default(DRAFT)
+  vatRatePercent     Int         @default(19)
+  subtotalCents      Int         @default(0)
+  vatCents           Int         @default(0)
+  totalCents         Int         @default(0)
+  subsidyCents       Int         @default(0)
+  // Vertragsbasis: eingefrorener Katalog + Regeln zum Erstellungszeitpunkt (FA-ADM-003).
+  priceSnapshot      Json?
+  plannedWeek        String?
+  validUntil         DateTime?
+  cancellationReason String?
+  signedAt           DateTime?
+  signatureProvider  String?
+  signatureRef       String?
+  hintText           String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  project            Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items              OfferItem[]
 }
 
 model OfferItem {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   offerId     String
+  sku         String?
   label       String
   description String?
-  quantity    Int      @default(1)
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  totalPrice  Decimal  @db.Decimal(10, 2)
-  sortOrder   Int      @default(0)
-  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  quantity    Int     @default(1)
+  unitCents   Int
+  totalCents  Int
+  sortOrder   Int     @default(0)
+
+  offer       Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+}
+
+model ProductCatalog {
+  id          String      @id @default(cuid())
+  sku         String
+  kind        CatalogKind
+  name        String
+  description String?
+  priceCents  Int
+  unit        String      @default("Stück")
+  power       Int?
+  validFrom   DateTime    @default(now())
+  validUntil  DateTime?
+  createdAt   DateTime    @default(now())
+
+  @@unique([sku, validFrom])
+  @@index([sku])
 }
 
 model Note {
@@ -153,35 +281,37 @@ model Note {
   content    String
   visibility NoteVisibility @default(INTERNAL)
   createdAt  DateTime       @default(now())
+
   project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model FileUpload {
   id           String   @id @default(cuid())
-  projectId     String
-  uploadedById  String
-  fileName      String
-  filePath      String
-  fileType      String?
-  fileSize      Int?
-  category      String   @default("project")
-  createdAt     DateTime @default(now())
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploadedBy    User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  projectId    String
+  uploadedById String
+  fileName     String
+  filePath     String
+  fileType     String?
+  fileSize     Int?
+  category     String   @default("project")
+  createdAt    DateTime @default(now())
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
 }
 
-model PricingConfig {
-  id                   String   @id @default(cuid())
-  productName          String   @default("Varmi")
-  basePrice            Decimal  @db.Decimal(10, 2)
-  installationFlatFee  Decimal  @db.Decimal(10, 2)
-  pvIntegrationPrice   Decimal  @db.Decimal(10, 2)
-  storageIntegrationPrice Decimal @db.Decimal(10, 2)
-  energyAuditPrice     Decimal  @db.Decimal(10, 2)
-  largeHouseThreshold  Int      @default(160)
-  largeHouseSurcharge  Decimal  @db.Decimal(10, 2)
-  hintText             String
-  updatedAt            DateTime @updatedAt
-  createdAt            DateTime @default(now())
+model AuditLog {
+  id        String   @id @default(cuid())
+  entity    String
+  entityId  String
+  action    String
+  actorId   String?
+  diff      Json?
+  createdAt DateTime @default(now())
+
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([actorId])
 }

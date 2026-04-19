@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { Actor } from "@/lib/rbac/can";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -44,6 +45,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           email: user.email,
           role: user.role,
+          organizationId: user.organizationId,
         };
       },
     }),
@@ -51,7 +53,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: Role }).role;
+        const typed = user as { role: Role; organizationId: string };
+        token.role = typed.role;
+        token.organizationId = typed.organizationId;
       }
       return token;
     },
@@ -59,6 +63,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.sub ?? "";
         session.user.role = token.role as Role;
+        session.user.organizationId = (token.organizationId as string) ?? "";
       }
       return session;
     },
@@ -83,4 +88,12 @@ export async function requireRole(roles: Array<Role | string>) {
     redirect("/unauthorized");
   }
   return session;
+}
+
+export function toActor(session: { user: { id: string; role: Role; organizationId: string } }): Actor {
+  return {
+    userId: session.user.id,
+    role: session.user.role,
+    organizationId: session.user.organizationId,
+  };
 }

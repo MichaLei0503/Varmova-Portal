@@ -1,15 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
+import { ProjectScope } from "@prisma/client";
 import { createProjectAction } from "@/app/(dashboard)/actions";
 import { initialActionState } from "@/lib/action-state";
+import { projectScopeLabels } from "@/lib/utils";
 import { Button, Card, CardTitle, Input, Label, Select, Textarea } from "@/components/ui";
 
-export function NewProjectForm({
-  installers,
-}: {
-  installers: { id: string; companyName: string; user: { name: string } }[];
-}) {
+type InstallerOption = { id: string; name: string };
+
+// AP 1.0 Stub-Formular. Der volle 8-Schritt-Wizard folgt in AP 1.3.
+// Diese Form deckt nur das Minimum ab, damit ein Projekt mit Offer angelegt werden kann.
+export function NewProjectForm({ installers }: { installers: InstallerOption[] }) {
   const [state, formAction, pending] = useActionState(createProjectAction, initialActionState);
 
   const fieldError = (field: string) => state.errors?.[field]?.[0];
@@ -35,7 +37,7 @@ export function NewProjectForm({
           ].map(([label, name, type]) => (
             <div key={name}>
               <Label htmlFor={name}>{label}</Label>
-              <Input id={name} name={name} type={type ?? "text"} required />
+              <Input id={name} name={name} type={type ?? "text"} required={name !== "phone"} />
               {fieldError(name) ? <p className="mt-1 text-xs text-danger">{fieldError(name)}</p> : null}
             </div>
           ))}
@@ -49,10 +51,9 @@ export function NewProjectForm({
             <Label htmlFor="buildingType">Gebäudetyp</Label>
             <Select id="buildingType" name="buildingType" defaultValue="Einfamilienhaus">
               <option>Einfamilienhaus</option>
+              <option>Zweifamilienhaus</option>
               <option>Mehrfamilienhaus</option>
-              <option>Doppelhaushälfte</option>
               <option>Reihenhaus</option>
-              <option>Gewerbeeinheit</option>
             </Select>
           </div>
           <div>
@@ -64,71 +65,84 @@ export function NewProjectForm({
             <Input id="constructionYear" name="constructionYear" type="number" defaultValue={1998} required />
           </div>
           <div>
-            <Label htmlFor="householdSize">Anzahl Personen</Label>
-            <Input id="householdSize" name="householdSize" type="number" min={1} defaultValue={4} required />
-          </div>
-          <div>
             <Label htmlFor="currentHeatingType">Aktuelle Heizungsart</Label>
-            <Input id="currentHeatingType" name="currentHeatingType" defaultValue="Gas-Brennwert" required />
+            <Select id="currentHeatingType" name="currentHeatingType" defaultValue="Gas-Brennwert">
+              <option>Gas-Brennwert</option>
+              <option>Gasheizung</option>
+              <option>Öl-Heizung</option>
+              <option>Ölheizung</option>
+              <option>Holzheizung</option>
+              <option>Pelletheizung</option>
+              <option>Wärmepumpe</option>
+            </Select>
           </div>
           <div>
             <Label htmlFor="annualEnergyConsumption">Jährlicher Energieverbrauch (optional)</Label>
             <Input id="annualEnergyConsumption" name="annualEnergyConsumption" type="number" placeholder="z. B. 22000" />
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
-            <input id="hasPv" name="hasPv" type="checkbox" className="h-4 w-4 rounded border-slate-300" />
-            <Label htmlFor="hasPv" className="mb-0">PV vorhanden</Label>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
-            <input id="hasStorage" name="hasStorage" type="checkbox" className="h-4 w-4 rounded border-slate-300" />
-            <Label htmlFor="hasStorage" className="mb-0">Speicher vorhanden</Label>
-          </div>
         </div>
         <div className="mt-4">
           <Label htmlFor="specialNote">Besonderer Hinweis / Freitext</Label>
-          <Textarea id="specialNote" name="specialNote" placeholder="Zugangssituation, Keller, Förderbedarf, Besonderheiten ..." />
+          <Textarea id="specialNote" name="specialNote" placeholder="Zugangssituation, Keller, Förderbedarf, Besonderheiten …" />
         </div>
       </Card>
 
       <Card>
-        <CardTitle>Projektdaten</CardTitle>
+        <CardTitle>Projekt</CardTitle>
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div>
-            <Label htmlFor="productName">Produkt</Label>
-            <Input id="productName" name="productName" value="Varmi" readOnly />
-          </div>
-          <div>
-            <Label htmlFor="implementationWindow">Umsetzungszeitraum</Label>
-            <Input id="implementationWindow" name="implementationWindow" defaultValue="Q2 2026" required />
-          </div>
-          <div className="xl:col-span-2">
-            <Label htmlFor="installerId">Installateur auswählen</Label>
-            <Select id="installerId" name="installerId" required defaultValue={installers[0]?.id}>
-              {installers.map((installer) => (
-                <option key={installer.id} value={installer.id}>
-                  {installer.companyName} · {installer.user.name}
+            <Label htmlFor="scope">Auftragsumfang</Label>
+            <Select id="scope" name="scope" defaultValue={ProjectScope.MONOVALENT_WITH_STORAGE}>
+              {Object.entries(projectScopeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </Select>
-            {fieldError("installerId") ? <p className="mt-1 text-xs text-danger">{fieldError("installerId")}</p> : null}
+          </div>
+          <div>
+            <Label htmlFor="varmiSku">Varmi-Modell</Label>
+            <Input id="varmiSku" name="varmiSku" defaultValue="VARMI-9.2" readOnly />
+          </div>
+          <div>
+            <Label htmlFor="bufferSku">Pufferspeicher (nur bei Monovalent mit Speicher)</Label>
+            <Select id="bufferSku" name="bufferSku" defaultValue="PUFFER-KOMBI-300-100">
+              <option value="">Kein Pufferspeicher</option>
+              <option value="PUFFER-KOMBI-300-100">WP-Kombi 300/100 l</option>
+              <option value="PUFFER-400">Pufferspeicher 400 l</option>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="implementationWindow">Umsetzungszeitraum</Label>
+            <Input id="implementationWindow" name="implementationWindow" defaultValue="KW 24/2026" required />
+          </div>
+          <div className="xl:col-span-2">
+            <Label htmlFor="ipOrgId">Installationspartner auswählen</Label>
+            <Select id="ipOrgId" name="ipOrgId" required defaultValue={installers[0]?.id}>
+              {installers.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name}
+                </option>
+              ))}
+            </Select>
+            {fieldError("ipOrgId") ? <p className="mt-1 text-xs text-danger">{fieldError("ipOrgId")}</p> : null}
           </div>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <Label htmlFor="files">Dateien / Fotos</Label>
             <Input id="files" name="files" type="file" multiple />
-            <p className="mt-2 text-xs text-slate-500">Für das MVP werden Uploads lokal unter /public/uploads vorbereitet.</p>
           </div>
           <div>
             <Label htmlFor="internalSalesNote">Interne Notiz Vertrieb</Label>
-            <Textarea id="internalSalesNote" name="internalSalesNote" placeholder="Interne Hinweise für Installateur oder Admin ..." />
+            <Textarea id="internalSalesNote" name="internalSalesNote" placeholder="Interne Hinweise für Installateur oder Admin …" />
           </div>
         </div>
       </Card>
 
       <div className="flex items-center justify-end gap-3">
         <Button type="submit" disabled={pending}>
-          {pending ? "Projekt wird erstellt..." : "Projekt anlegen & Angebot erzeugen"}
+          {pending ? "Projekt wird erstellt…" : "Projekt anlegen & Angebot erzeugen"}
         </Button>
       </div>
     </form>

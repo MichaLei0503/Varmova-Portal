@@ -1,133 +1,170 @@
-import { PrismaClient, ProjectStatus, Role } from "@prisma/client";
+import {
+  CatalogKind,
+  HeatingSystem,
+  OfferStatus,
+  OrgStatus,
+  OrgType,
+  PrismaClient,
+  ProjectScope,
+  Role,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+const CATALOG_VALID_FROM = new Date("2026-01-01T00:00:00Z");
+
+// Preise in Cent, Quelle: Varmova-Lieferung 2026-04-17.
+// Für Positionen ohne finale Varmova-Preisfreigabe dient der Admin später zur Korrektur.
+const CATALOG = [
+  { sku: "VARMI-9.2", kind: CatalogKind.PRODUCT, name: "Varmi Wärmepumpe 9,2 kW", description: "Leistungsaufnahme 9,2 kW, Heizleistung max 17,8 kW, Energieeffizienz A+, Steuerung UVR-16X2S, CAN/DL-Bus.", priceCents: 990_000, unit: "Stück", power: 9 },
+  { sku: "MONTAGE-STD", kind: CatalogKind.SERVICE, name: "Montage durch Heizungsinstallateur", description: "Inklusive Standard-Installationsmaterial.", priceCents: 250_000, unit: "Pauschal" },
+  { sku: "ELEKTRO-INSTALL", kind: CatalogKind.SERVICE, name: "Elektroinstallation", priceCents: 110_000, unit: "Pauschal" },
+  { sku: "PUFFER-KOMBI-300-100", kind: CatalogKind.ACCESSORY, name: "Pufferspeicher WP-Kombi 300/100", description: "Bayersolar, 275/98 l, Energieeffizienz B, inkl. Montage-Set.", priceCents: 210_000, unit: "Stück" },
+  { sku: "PUFFER-400", kind: CatalogKind.ACCESSORY, name: "Pufferspeicher 400 l", priceCents: 250_000, unit: "Stück" },
+  { sku: "THERMOSTAT-KLASSISCH", kind: CatalogKind.ACCESSORY, name: "Thermostat klassisch", priceCents: 3_500, unit: "Stück" },
+  { sku: "THERMOSTAT-SMART", kind: CatalogKind.ACCESSORY, name: "Thermostat smart", priceCents: 8_500, unit: "Stück" },
+  { sku: "HEIZKOERPER-STD", kind: CatalogKind.ACCESSORY, name: "Heizkörper-Ersatz (Standard)", priceCents: 40_000, unit: "Stück" },
+  { sku: "HEIZKOERPER-NT", kind: CatalogKind.ACCESSORY, name: "Niedertemperatur-Heizkörper", priceCents: 75_000, unit: "Stück" },
+  { sku: "ZAEHLERSCHRANK", kind: CatalogKind.SERVICE, name: "Zählerschrank (WP-Umbau)", priceCents: 250_000, unit: "Pauschal" },
+  { sku: "DEMONTAGE-GAS", kind: CatalogKind.SERVICE, name: "Demontage Altanlage Gas", priceCents: 55_000, unit: "Pauschal" },
+  { sku: "DEMONTAGE-OEL", kind: CatalogKind.SERVICE, name: "Demontage Altanlage Öl", priceCents: 225_000, unit: "Pauschal" },
+] as const;
+
 async function main() {
+  // Reihenfolge respektiert onDelete: Cascade.
+  await prisma.auditLog.deleteMany();
   await prisma.fileUpload.deleteMany();
   await prisma.note.deleteMany();
   await prisma.offerItem.deleteMany();
   await prisma.offer.deleteMany();
   await prisma.project.deleteMany();
   await prisma.customer.deleteMany();
-  await prisma.salesPartner.deleteMany();
-  await prisma.installer.deleteMany();
+  await prisma.installerProfile.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.pricingConfig.deleteMany();
+  await prisma.organization.deleteMany();
+  await prisma.productCatalog.deleteMany();
 
   const passwordHash = await bcrypt.hash("Demo1234!", 10);
 
-  const admin = await prisma.user.create({
+  const varmova = await prisma.organization.create({
+    data: {
+      type: OrgType.VARMOVA,
+      name: "Varmova UG",
+      status: OrgStatus.ACTIVE,
+      taxId: "DE460335598",
+      address: "Am Weiher 1, 85435 Erding",
+    },
+  });
+
+  const vpOrg = await prisma.organization.create({
+    data: {
+      type: OrgType.VP,
+      name: "Varmova Vertrieb Süd",
+      status: OrgStatus.ACTIVE,
+      taxId: "DE111111111",
+      address: "Hauptstraße 5, 80331 München",
+      trustedUntil: new Date("2027-04-17T00:00:00Z"),
+    },
+  });
+
+  const ipOrg = await prisma.organization.create({
+    data: {
+      type: OrgType.IP,
+      name: "Richter Haustechnik GmbH",
+      status: OrgStatus.ACTIVE,
+      taxId: "DE222222222",
+      address: "Gewerbering 7, 85435 Erding",
+      lat: 48.3066,
+      lng: 11.9067,
+      trustedUntil: new Date("2027-04-17T00:00:00Z"),
+      installerProfile: {
+        create: {
+          zipCodes: ["85435", "85445", "85456", "80331", "80333"],
+          radiusKm: 50,
+          certifiedProducts: ["VARMI-9.2"],
+          weeklyCapacity: 3,
+        },
+      },
+    },
+  });
+
+  await prisma.user.create({
     data: {
       name: "Anna Admin",
       email: "admin@varmova.local",
       passwordHash,
-      role: Role.ADMIN,
+      role: Role.VARMOVA_ADMIN,
+      organizationId: varmova.id,
     },
   });
 
-  const salesOne = await prisma.user.create({
+  await prisma.user.create({
     data: {
-      name: "Lukas Schneider",
-      email: "sales1@varmova.local",
+      name: "Paul Produktion",
+      email: "production@varmova.local",
       passwordHash,
-      role: Role.SALES,
-      salesPartner: {
-        create: {
-          companyName: "Varmova Vertrieb Nord",
-          partnerCode: "VP-NORD-01",
-          phone: "+49 40 555100",
-          region: "Nord",
-        },
-      },
+      role: Role.VARMOVA_PRODUCTION,
+      organizationId: varmova.id,
     },
-    include: { salesPartner: true },
   });
 
-  const salesTwo = await prisma.user.create({
+  const vpAdmin = await prisma.user.create({
     data: {
       name: "Miriam Keller",
-      email: "sales2@varmova.local",
+      email: "vp-admin@varmova.local",
       passwordHash,
-      role: Role.SALES,
-      salesPartner: {
-        create: {
-          companyName: "Varmova Vertrieb Süd",
-          partnerCode: "VP-SUED-01",
-          phone: "+49 89 555200",
-          region: "Süd",
-        },
-      },
+      role: Role.VP_ADMIN,
+      organizationId: vpOrg.id,
     },
-    include: { salesPartner: true },
   });
 
-  const installerOne = await prisma.user.create({
+  await prisma.user.create({
+    data: {
+      name: "Lukas Schneider",
+      email: "vp@varmova.local",
+      passwordHash,
+      role: Role.VP,
+      organizationId: vpOrg.id,
+    },
+  });
+
+  await prisma.user.create({
     data: {
       name: "Tobias Richter",
-      email: "installer1@varmova.local",
+      email: "ip-admin@varmova.local",
       passwordHash,
-      role: Role.INSTALLER,
-      installer: {
-        create: {
-          companyName: "Richter Haustechnik GmbH",
-          installerCode: "INST-NORD-01",
-          phone: "+49 40 700100",
-          region: "Hamburg",
-        },
-      },
+      role: Role.IP_ADMIN,
+      organizationId: ipOrg.id,
     },
-    include: { installer: true },
   });
 
-  const installerTwo = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Daniela Vogt",
-      email: "installer2@varmova.local",
+      email: "ip@varmova.local",
       passwordHash,
-      role: Role.INSTALLER,
-      installer: {
-        create: {
-          companyName: "Vogt Energie & Wärme",
-          installerCode: "INST-SUED-01",
-          phone: "+49 89 700200",
-          region: "München",
-        },
-      },
-    },
-    include: { installer: true },
-  });
-
-  await prisma.pricingConfig.create({
-    data: {
-      productName: "Varmi",
-      basePrice: 12990,
-      installationFlatFee: 3490,
-      pvIntegrationPrice: 1190,
-      storageIntegrationPrice: 890,
-      energyAuditPrice: 590,
-      largeHouseThreshold: 160,
-      largeHouseSurcharge: 1290,
-      hintText:
-        "Dieses Angebot basiert auf den aktuell bekannten Projektdaten und dient als indikative Kalkulation für das Varmi MVP.",
+      role: Role.IP,
+      organizationId: ipOrg.id,
     },
   });
 
-  const customerOne = await prisma.customer.create({
-    data: {
-      firstName: "Julia",
-      lastName: "Becker",
-      email: "julia.becker@example.com",
-      phone: "+49 151 1000001",
-      street: "Birkenweg",
-      houseNumber: "12",
-      postalCode: "22303",
-      city: "Hamburg",
-    },
+  await prisma.productCatalog.createMany({
+    data: CATALOG.map((entry) => ({
+      sku: entry.sku,
+      kind: entry.kind,
+      name: entry.name,
+      description: "description" in entry ? entry.description : null,
+      priceCents: entry.priceCents,
+      unit: entry.unit,
+      power: "power" in entry ? entry.power : null,
+      validFrom: CATALOG_VALID_FROM,
+    })),
   });
 
-  const customerTwo = await prisma.customer.create({
+  const customer = await prisma.customer.create({
     data: {
+      salutation: "Herr",
       firstName: "Stefan",
       lastName: "Hoffmann",
       email: "stefan.hoffmann@example.com",
@@ -139,99 +176,94 @@ async function main() {
     },
   });
 
-  const projectOne = await prisma.project.create({
-    data: {
-      projectNumber: "VAR-2026-0001",
-      status: ProjectStatus.HANDED_OVER,
-      implementationWindow: "Q2 2026",
-      buildingType: "Einfamilienhaus",
-      livingAreaSqm: 145,
-      constructionYear: 1998,
-      householdSize: 4,
-      currentHeatingType: "Gas-Brennwert",
-      annualEnergyConsumption: 22000,
-      hasPv: true,
-      hasStorage: false,
-      specialNote: "Kellerraum gut zugänglich, alte Therme soll rückgebaut werden.",
-      internalSalesNote: "Kunde wünscht zügige Umsetzung vor Sommer.",
-      customerId: customerOne.id,
-      salesPartnerId: salesOne.salesPartner!.id,
-      installerId: installerOne.installer!.id,
-      createdById: salesOne.id,
-      offer: {
-        create: {
-          subtotal: 17670,
-          total: 17670,
-          hintText:
-            "PV-Anbindung wurde berücksichtigt. Finale Montageprüfung erfolgt durch den Installateur.",
-          items: {
-            create: [
-              { label: "Varmi System", quantity: 1, unitPrice: 12990, totalPrice: 12990, sortOrder: 1 },
-              { label: "Installationspauschale", quantity: 1, unitPrice: 3490, totalPrice: 3490, sortOrder: 2 },
-              { label: "PV-Integration", quantity: 1, unitPrice: 1190, totalPrice: 1190, sortOrder: 3 },
-            ],
-          },
-        },
-      },
-      notes: {
-        create: [
-          {
-            authorId: salesOne.id,
-            content: "Projekt inklusive Erstangebot angelegt und an Installateur übergeben.",
-          },
-        ],
-      },
-    },
+  const catalogByIssueDate = Object.fromEntries(
+    CATALOG.map((entry) => [entry.sku, { ...entry, validFrom: CATALOG_VALID_FROM.toISOString() }]),
+  );
+
+  const itemSpecs = [
+    { sku: "VARMI-9.2", quantity: 1 },
+    { sku: "MONTAGE-STD", quantity: 1 },
+    { sku: "ELEKTRO-INSTALL", quantity: 1 },
+    { sku: "PUFFER-KOMBI-300-100", quantity: 1 },
+  ] as const;
+
+  const items = itemSpecs.map((spec, index) => {
+    const entry = CATALOG.find((c) => c.sku === spec.sku)!;
+    return {
+      sku: entry.sku,
+      label: entry.name,
+      description: "description" in entry ? entry.description : null,
+      quantity: spec.quantity,
+      unitCents: entry.priceCents,
+      totalCents: entry.priceCents * spec.quantity,
+      sortOrder: index + 1,
+    };
   });
+
+  const subtotalCents = items.reduce((sum, item) => sum + item.totalCents, 0);
+  const vatRatePercent = 19;
+  const vatCents = Math.round((subtotalCents * vatRatePercent) / 100);
+  const totalCents = subtotalCents + vatCents;
 
   await prisma.project.create({
     data: {
-      projectNumber: "VAR-2026-0002",
-      status: ProjectStatus.IN_PROGRESS,
-      implementationWindow: "Q3 2026",
-      buildingType: "Doppelhaushälfte",
-      livingAreaSqm: 178,
-      constructionYear: 1986,
-      householdSize: 5,
-      currentHeatingType: "Öl-Heizung",
-      annualEnergyConsumption: 28500,
-      hasPv: false,
-      hasStorage: true,
-      specialNote: "Zusätzliche Dämmmaßnahme für Spitzboden geplant.",
-      internalSalesNote: "Kunde prüft Fördermittel und benötigt druckbares Angebot.",
-      customerId: customerTwo.id,
-      salesPartnerId: salesTwo.salesPartner!.id,
-      installerId: installerTwo.installer!.id,
-      createdById: salesTwo.id,
+      projectNumber: "VAR-2026-0001",
+      buildingType: "Einfamilienhaus",
+      constructionYear: 1998,
+      livingAreaSqm: 145,
+      units: 1,
+      bathrooms: 2,
+      bathtubs: 1,
+      showers: 1,
+      currentHeatingType: "Gas-Brennwert",
+      currentHeatingInstallYear: 2005,
+      currentHeatingSystem: HeatingSystem.ZWEIROHR,
+      annualEnergyConsumption: 22000,
+      heatingCircuits: 2,
+      heaterTypes: ["Heizkörper"],
+      scope: ProjectScope.MONOVALENT_WITH_STORAGE,
+      varmiSku: "VARMI-9.2",
+      bufferSku: "PUFFER-KOMBI-300-100",
+      implementationWindow: "KW 24/2026",
+      internalSalesNote: "Kunde wünscht zügige Umsetzung vor Sommer.",
+      customerId: customer.id,
+      vpOrgId: vpOrg.id,
+      ipOrgId: ipOrg.id,
+      createdById: vpAdmin.id,
       offer: {
         create: {
-          subtotal: 19250,
-          total: 19250,
-          hintText:
-            "Energieanalyse und Speicherintegration wurden aufgrund der Projektdaten ergänzt.",
-          items: {
-            create: [
-              { label: "Varmi System", quantity: 1, unitPrice: 12990, totalPrice: 12990, sortOrder: 1 },
-              { label: "Installationspauschale", quantity: 1, unitPrice: 3490, totalPrice: 3490, sortOrder: 2 },
-              { label: "Speicherintegration", quantity: 1, unitPrice: 890, totalPrice: 890, sortOrder: 3 },
-              { label: "Energieanalyse", quantity: 1, unitPrice: 590, totalPrice: 590, sortOrder: 4 },
-              { label: "Objektzuschlag > 160 m²", quantity: 1, unitPrice: 1290, totalPrice: 1290, sortOrder: 5 },
-            ],
+          offerNumber: "WP26000001",
+          status: OfferStatus.OFFER_CREATED,
+          vatRatePercent,
+          subtotalCents,
+          vatCents,
+          totalCents,
+          priceSnapshot: {
+            catalogValidFrom: CATALOG_VALID_FROM.toISOString(),
+            vatRatePercent,
+            items: itemSpecs.map((spec) => catalogByIssueDate[spec.sku]),
           },
+          plannedWeek: "KW 24/2026",
+          validUntil: new Date("2026-05-01T00:00:00Z"),
+          hintText: "Beispielangebot aus Seed. Preise und Konfiguration gemäß Katalogstand 2026-01-01.",
+          items: { create: items },
         },
-      },
-      notes: {
-        create: [
-          {
-            authorId: installerTwo.id,
-            content: "Vor-Ort-Termin für kommende Woche geplant. Anschlussraum wurde bereits vorgeprüft.",
-          },
-        ],
       },
     },
   });
 
-  console.log({ admin: admin.email, demoPassword: "Demo1234!", projectOne: projectOne.projectNumber });
+  console.log({
+    demoPassword: "Demo1234!",
+    users: [
+      "admin@varmova.local",
+      "production@varmova.local",
+      "vp-admin@varmova.local",
+      "vp@varmova.local",
+      "ip-admin@varmova.local",
+      "ip@varmova.local",
+    ],
+    totalCents,
+  });
 }
 
 main()

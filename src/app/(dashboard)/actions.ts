@@ -1,10 +1,10 @@
 "use server";
 
-import { NoteVisibility, ProjectStatus, Role } from "@prisma/client";
+import { NoteVisibility, OfferStatus, Role } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAuth, requireRole } from "@/lib/auth";
-import { canAccessProject, canUpdateStatus } from "@/lib/permissions";
+import { requireAuth, requireRole, toActor } from "@/lib/auth";
+import { canReadProject, canUpdateOfferStatus } from "@/lib/permissions";
 import { calculateOffer } from "@/lib/pricing";
 import { generateProjectNumber } from "@/lib/project";
 import { prisma } from "@/lib/prisma";
@@ -28,9 +28,8 @@ async function persistFiles(projectId: string, uploadedById: string, files: File
   });
 }
 
-
 export async function createProjectAction(_: ActionState, formData: FormData): Promise<ActionState> {
-  const session = await requireRole(["SALES", "ADMIN"]);
+  const session = await requireRole(["VP", "VP_ADMIN", "VARMOVA_ADMIN"]);
 
   const parsed = projectSchema.safeParse({
     firstName: formData.get("firstName"),
@@ -44,16 +43,15 @@ export async function createProjectAction(_: ActionState, formData: FormData): P
     buildingType: formData.get("buildingType"),
     livingAreaSqm: formData.get("livingAreaSqm"),
     constructionYear: formData.get("constructionYear"),
-    householdSize: formData.get("householdSize"),
     currentHeatingType: formData.get("currentHeatingType"),
     annualEnergyConsumption: formData.get("annualEnergyConsumption"),
-    hasPv: formData.get("hasPv") === "on",
-    hasStorage: formData.get("hasStorage") === "on",
+    scope: formData.get("scope"),
+    varmiSku: formData.get("varmiSku") || "VARMI-9.2",
+    bufferSku: formData.get("bufferSku") || undefined,
     specialNote: formData.get("specialNote") || undefined,
     implementationWindow: formData.get("implementationWindow"),
-    installerId: formData.get("installerId"),
+    ipOrgId: formData.get("ipOrgId"),
     internalSalesNote: formData.get("internalSalesNote") || undefined,
-    productName: "Varmi",
   });
 
   if (!parsed.success) {
@@ -64,13 +62,9 @@ export async function createProjectAction(_: ActionState, formData: FormData): P
     };
   }
 
-  const salesPartner = await prisma.salesPartner.findUnique({
-    where: { userId: session.user.id },
-  });
-
-  const pricingConfig = await prisma.pricingConfig.findFirst();
-  if (!pricingConfig) {
-    return { success: false, message: "Es ist keine Pricing-Konfiguration vorhanden." };
+  const catalog = await prisma.productCatalog.findMany({ where: { validUntil: null } });
+  if (!catalog.length) {
+    return { success: false, message: "Kein aktiver Produktkatalog vorhanden." };
   }
 
   const files = formData.getAll("files") as File[];
@@ -81,7 +75,7 @@ export async function createProjectAction(_: ActionState, formData: FormData): P
         firstName: parsed.data.firstName,
         lastName: parsed.data.lastName,
         email: parsed.data.email,
-        phone: parsed.data.phone,
+        phone: parsed.data.phone || null,
         street: parsed.data.street,
         houseNumber: parsed.data.houseNumber,
         postalCode: parsed.data.postalCode,
@@ -90,50 +84,58 @@ export async function createProjectAction(_: ActionState, formData: FormData): P
     });
 
     const projectNumber = await generateProjectNumber(tx);
-    const status = parsed.data.installerId ? ProjectStatus.HANDED_OVER : ProjectStatus.OFFER_CREATED;
 
     const createdProject = await tx.project.create({
       data: {
         projectNumber,
-        status,
-        productName: parsed.data.productName,
-        implementationWindow: parsed.data.implementationWindow,
-        internalSalesNote: parsed.data.internalSalesNote,
         buildingType: parsed.data.buildingType,
         livingAreaSqm: parsed.data.livingAreaSqm,
         constructionYear: parsed.data.constructionYear,
-        householdSize: parsed.data.householdSize,
         currentHeatingType: parsed.data.currentHeatingType,
         annualEnergyConsumption: parsed.data.annualEnergyConsumption,
-        hasPv: parsed.data.hasPv,
-        hasStorage: parsed.data.hasStorage,
+        scope: parsed.data.scope,
+        varmiSku: parsed.data.varmiSku,
+        bufferSku: parsed.data.bufferSku,
+        implementationWindow: parsed.data.implementationWindow,
+        internalSalesNote: parsed.data.internalSalesNote,
         specialNote: parsed.data.specialNote,
         customerId: customer.id,
-        salesPartnerId: salesPartner?.id,
-        installerId: parsed.data.installerId,
+        vpOrgId: session.user.organizationId,
+        ipOrgId: parsed.data.ipOrgId,
         createdById: session.user.id,
       },
     });
 
     const calculation = calculateOffer(
       {
-        productName: parsed.data.productName,
-        livingAreaSqm: parsed.data.livingAreaSqm,
-        annualEnergyConsumption: parsed.data.annualEnergyConsumption,
-        hasPv: parsed.data.hasPv,
-        hasStorage: parsed.data.hasStorage,
+        scope: parsed.data.scope,
+        varmiSku: parsed.data.varmiSku,
+        bufferSku: parsed.data.bufferSku,
+        currentHeatingType: parsed.data.currentHeatingType,
       },
-      pricingConfig,
+      catalog,
     );
 
     await tx.offer.create({
       data: {
         projectId: createdProject.id,
-        subtotal: calculation.subtotal,
-        total: calculation.total,
-        hintText: calculation.hintText,
+        status: OfferStatus.OFFER_CREATED,
+        vatRatePercent: 19,
+        subtotalCents: calculation.subtotalCents,
+        vatCents: calculation.vatCents,
+        totalCents: calculation.totalCents,
+        priceSnapshot: calculation.snapshot,
+        hintText: "Angebot aus Wizard-Stub generiert (AP 1.0 — voller 8-Schritt-Wizard folgt in AP 1.3).",
         items: {
-          create: calculation.items,
+          create: calculation.items.map((item) => ({
+            sku: item.sku,
+            label: item.label,
+            description: item.description,
+            quantity: item.quantity,
+            unitCents: item.unitCents,
+            totalCents: item.totalCents,
+            sortOrder: item.sortOrder,
+          })),
         },
       },
     });
@@ -143,9 +145,7 @@ export async function createProjectAction(_: ActionState, formData: FormData): P
         projectId: createdProject.id,
         authorId: session.user.id,
         visibility: NoteVisibility.INTERNAL,
-        content: parsed.data.installerId
-          ? "Projekt angelegt, Angebot erzeugt und automatisch an Installateur übergeben."
-          : "Projekt angelegt und Angebot erzeugt.",
+        content: "Projekt angelegt und Angebot erzeugt.",
       },
     });
 
@@ -159,55 +159,66 @@ export async function createProjectAction(_: ActionState, formData: FormData): P
   redirect(`/projects/${project.id}`);
 }
 
-export async function updateProjectStatusAction(formData: FormData) {
+export async function updateOfferStatusAction(formData: FormData) {
   const session = await requireAuth();
-  if (!canUpdateStatus(session.user.role)) {
+  const actor = toActor(session);
+
+  const offerId = String(formData.get("offerId"));
+  const status = String(formData.get("status")) as OfferStatus;
+
+  const offer = await prisma.offer.findUnique({
+    where: { id: offerId },
+    include: { project: true },
+  });
+  if (!offer) return;
+
+  const resource = {
+    createdById: offer.project.createdById,
+    organizationId: offer.project.vpOrgId,
+    assignedOrgIds: offer.project.ipOrgId ? [offer.project.ipOrgId] : [],
+  };
+
+  if (!canUpdateOfferStatus(actor, resource)) {
     redirect("/unauthorized");
   }
 
-  const projectId = String(formData.get("projectId"));
-  const status = String(formData.get("status")) as ProjectStatus;
-
-  await prisma.project.update({
-    where: { id: projectId },
+  await prisma.offer.update({
+    where: { id: offerId },
     data: { status },
   });
 
-  await prisma.note.create({
+  await prisma.auditLog.create({
     data: {
-      projectId,
-      authorId: session.user.id,
-      content: `Status auf ${status} geändert.`,
-      visibility: NoteVisibility.INTERNAL,
+      entity: "Offer",
+      entityId: offerId,
+      action: `status:${status}`,
+      actorId: session.user.id,
     },
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${offer.projectId}`);
   revalidatePath("/dashboard");
 }
 
 export async function addProjectNoteAction(formData: FormData) {
   const session = await requireAuth();
+  const actor = toActor(session);
+
   const projectId = String(formData.get("projectId"));
   const content = String(formData.get("content") || "").trim();
 
   if (!content) return;
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    include: { installer: { include: { user: true } } },
-  });
-
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return;
 
-  const allowed = canAccessProject({
-    role: session.user.role,
-    userId: session.user.id,
-    installerUserId: project.installer?.userId,
+  const resource = {
     createdById: project.createdById,
-  });
+    organizationId: project.vpOrgId,
+    assignedOrgIds: project.ipOrgId ? [project.ipOrgId] : [],
+  };
 
-  if (!allowed) {
+  if (!canReadProject(actor, resource)) {
     redirect("/unauthorized");
   }
 
@@ -231,72 +242,16 @@ export async function uploadProjectFilesAction(formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
 }
 
-export async function updatePricingConfigAction(formData: FormData) {
-  await requireRole(["ADMIN"]);
-
-  const config = await prisma.pricingConfig.findFirst();
-  if (!config) return;
-
-  await prisma.pricingConfig.update({
-    where: { id: config.id },
-    data: {
-      basePrice: Number(formData.get("basePrice")),
-      installationFlatFee: Number(formData.get("installationFlatFee")),
-      pvIntegrationPrice: Number(formData.get("pvIntegrationPrice")),
-      storageIntegrationPrice: Number(formData.get("storageIntegrationPrice")),
-      energyAuditPrice: Number(formData.get("energyAuditPrice")),
-      largeHouseThreshold: Number(formData.get("largeHouseThreshold")),
-      largeHouseSurcharge: Number(formData.get("largeHouseSurcharge")),
-      hintText: String(formData.get("hintText")),
-    },
-  });
-
-  revalidatePath("/admin/settings/pricing");
-  revalidatePath("/projects");
-}
-
 export async function updateUserAccessAction(formData: FormData) {
-  await requireRole(["ADMIN"]);
+  await requireRole(["VARMOVA_ADMIN"]);
 
   const userId = String(formData.get("userId"));
-  const role = String(formData.get("role"));
+  const role = String(formData.get("role")) as Role;
   const isActive = formData.get("isActive") === "on";
 
-  const user = await prisma.user.findUnique({
+  await prisma.user.update({
     where: { id: userId },
-    include: { salesPartner: true, installer: true },
-  });
-
-  if (!user) return;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        role: role as Role,
-        isActive,
-      },
-    });
-
-    if (role === "SALES" && !user.salesPartner) {
-      await tx.salesPartner.create({
-        data: {
-          userId,
-          companyName: `${user.name} Vertrieb`,
-          partnerCode: `AUTO-SALES-${Date.now()}`,
-        },
-      });
-    }
-
-    if (role === "INSTALLER" && !user.installer) {
-      await tx.installer.create({
-        data: {
-          userId,
-          companyName: `${user.name} Installation`,
-          installerCode: `AUTO-INSTALL-${Date.now()}`,
-        },
-      });
-    }
+    data: { role, isActive },
   });
 
   revalidatePath("/admin/users");
