@@ -89,6 +89,30 @@ async function main() {
     },
   });
 
+  // Bundesweit agierender Installationspartner, Standort ~geografisches Zentrum DE (Kassel).
+  // radiusKm 1000 deckt jede deutsche Projektadresse per Luftlinie ab (max ~900 km).
+  const ipOrgNationwide = await prisma.organization.create({
+    data: {
+      type: OrgType.IP,
+      name: "Varmova Bundesweit Service GmbH",
+      status: OrgStatus.ACTIVE,
+      taxId: "DE333333333",
+      address: "Kölnische Straße 100, 34117 Kassel",
+      lat: 51.3127,
+      lng: 9.4797,
+      trustedUntil: new Date("2027-04-17T00:00:00Z"),
+      installerProfile: {
+        create: {
+          zipCodes: [],
+          radiusKm: 1000,
+          certifiedProducts: ["VARMI-9.2"],
+          weeklyCapacity: 10,
+          ratingAvg: 4.8,
+        },
+      },
+    },
+  });
+
   await prisma.user.create({
     data: {
       name: "Anna Admin",
@@ -146,6 +170,16 @@ async function main() {
       passwordHash,
       role: Role.IP,
       organizationId: ipOrg.id,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      name: "Max Bundesweit",
+      email: "ip-nationwide@varmova.local",
+      passwordHash,
+      role: Role.IP_ADMIN,
+      organizationId: ipOrgNationwide.id,
     },
   });
 
@@ -261,6 +295,7 @@ async function main() {
       "vp@varmova.local",
       "ip-admin@varmova.local",
       "ip@varmova.local",
+      "ip-nationwide@varmova.local",
     ],
     totalCents,
   });
