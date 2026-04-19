@@ -11,7 +11,7 @@ export function ProjekttypStep({ selected }: { selected?: "varmi" }) {
         <label className="flex cursor-pointer flex-col items-start gap-3 rounded-2xl border-2 border-copper bg-copper/5 p-6">
           <Flame className="h-8 w-8 text-copper" />
           <div>
-            <p className="text-lg font-semibold text-night">Varmi Wärmepumpe</p>
+            <p className="text-lg font-semibold text-night">Varmi Heiztechnologie</p>
             <p className="mt-1 text-sm text-slate-600">Komplettsystem inkl. Montage und Elektroinstallation.</p>
           </div>
         </label>

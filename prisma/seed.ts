@@ -17,7 +17,7 @@ const CATALOG_VALID_FROM = new Date("2026-01-01T00:00:00Z");
 // Preise in Cent, Quelle: Varmova-Lieferung 2026-04-17.
 // Für Positionen ohne finale Varmova-Preisfreigabe dient der Admin später zur Korrektur.
 const CATALOG = [
-  { sku: "VARMI-9.2", kind: CatalogKind.PRODUCT, name: "Varmi Wärmepumpe 9,2 kW", description: "Leistungsaufnahme 9,2 kW, Heizleistung max 17,8 kW, Energieeffizienz A+, Steuerung UVR-16X2S, CAN/DL-Bus.", priceCents: 990_000, unit: "Stück", power: 9 },
+  { sku: "VARMI-9.2", kind: CatalogKind.PRODUCT, name: "Varmi Heiztechnologie 9,2 kW", description: "Leistungsaufnahme 9,2 kW, Heizleistung max 17,8 kW, Energieeffizienz A+, Steuerung UVR-16X2S, CAN/DL-Bus.", priceCents: 990_000, unit: "Stück", power: 9 },
   { sku: "MONTAGE-STD", kind: CatalogKind.SERVICE, name: "Montage durch Heizungsinstallateur", description: "Inklusive Standard-Installationsmaterial.", priceCents: 250_000, unit: "Pauschal" },
   { sku: "ELEKTRO-INSTALL", kind: CatalogKind.SERVICE, name: "Elektroinstallation", priceCents: 110_000, unit: "Pauschal" },
   { sku: "PUFFER-KOMBI-300-100", kind: CatalogKind.ACCESSORY, name: "Pufferspeicher WP-Kombi 300/100", description: "Bayersolar, 275/98 l, Energieeffizienz B, inkl. Montage-Set.", priceCents: 210_000, unit: "Stück" },

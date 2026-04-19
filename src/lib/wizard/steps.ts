@@ -1,6 +1,6 @@
 import { HeatingLocation, HeatingSystem, ProjectScope, WindowType } from "@prisma/client";
 import { z } from "zod";
-import { checkbox, optionalInt, optionalString, stringArray } from "./form-helpers";
+import { checkbox, emptyToUndefined, optionalInt, optionalString, stringArray } from "./form-helpers";
 
 // Die Wizard-Struktur ist Daten, nicht Code (Torvalds/Hickey).
 // Ein neuer Schritt = ein neuer Eintrag. Der Fortschrittsbalken, das
@@ -41,7 +41,7 @@ export const hausSchema = z.object({
   bathrooms: z.coerce.number().int().min(0).default(1),
   bathtubs: z.coerce.number().int().min(0).default(0),
   showers: z.coerce.number().int().min(0).default(1),
-  windowType: z.nativeEnum(WindowType).optional(),
+  windowType: z.preprocess(emptyToUndefined, z.nativeEnum(WindowType).optional()),
   roofInsulated: checkbox.default(false),
   exteriorInsulated: checkbox.default(false),
 });
@@ -58,10 +58,10 @@ export const heizungSchema = z.object({
     "Wärmepumpe",
   ]),
   currentHeatingInstallYear: optionalInt,
-  currentHeatingSystem: z.nativeEnum(HeatingSystem).optional(),
-  currentHeatingLocation: z.nativeEnum(HeatingLocation).optional(),
+  currentHeatingSystem: z.preprocess(emptyToUndefined, z.nativeEnum(HeatingSystem).optional()),
+  currentHeatingLocation: z.preprocess(emptyToUndefined, z.nativeEnum(HeatingLocation).optional()),
   annualEnergyConsumption: optionalInt,
-  heatingCircuits: z.coerce.number().int().min(1).max(3).optional(),
+  heatingCircuits: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(3).optional()),
   heaterTypes: stringArray,
   hasPotentialEqualization: checkbox.default(false),
   hasSolarThermal: checkbox.default(false),

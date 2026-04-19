@@ -9,6 +9,11 @@ export const checkbox = z.preprocess(
   z.boolean(),
 );
 
+// HTML-Select mit leerer Default-Option liefert "" statt undefined.
+// Dieser Helper macht daraus undefined, damit `.optional()`-Schemas greifen.
+export const emptyToUndefined = (value: unknown): unknown =>
+  value === "" || value === null ? undefined : value;
+
 export const optionalString = z
   .union([z.string(), z.undefined(), z.null()])
   .transform((value) => {
