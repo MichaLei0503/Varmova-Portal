@@ -89,6 +89,13 @@ export const auswahlSchema = z.object({
   ipOrgId: z.string().min(1, "Bitte Installationspartner wählen."),
 });
 
+// Schritt 7 — Prüfung (FA-ANG-060..065). Die Positionsliste und der Preisblock
+// werden zur Laufzeit aus Projekt-/Heizungs-Daten + Katalog berechnet; gespeichert
+// werden nur Steuer-Flags (z. B. Finanzierungswunsch).
+export const pruefungSchema = z.object({
+  financingRequested: checkbox.default(false),
+});
+
 export const WIZARD_STEPS = [
   { id: "projekttyp", title: "Projekttyp", order: 1, schema: projekttypSchema },
   { id: "kunde", title: "Kunde", order: 2, schema: kundeSchema },
@@ -96,7 +103,7 @@ export const WIZARD_STEPS = [
   { id: "heizung", title: "Heizung", order: 4, schema: heizungSchema },
   { id: "projekt", title: "Projekt", order: 5, schema: projektSchema },
   { id: "auswahl", title: "Auswahl", order: 6, schema: auswahlSchema },
-  { id: "pruefung", title: "Prüfung", order: 7, schema: z.object({}).passthrough() },
+  { id: "pruefung", title: "Prüfung", order: 7, schema: pruefungSchema },
   { id: "bestaetigung", title: "Bestätigung", order: 8, schema: z.object({}).passthrough() },
 ] as const;
 
