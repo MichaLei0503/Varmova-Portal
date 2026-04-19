@@ -1,5 +1,6 @@
 import type { WizardDraftData } from "@/lib/wizard/draft";
 import { WizardStepId } from "@/lib/wizard/steps";
+import { AuswahlStep } from "./steps/auswahl";
 import { HausStep } from "./steps/haus";
 import { HeizungStep } from "./steps/heizung";
 import { KundeStep } from "./steps/kunde";
@@ -8,13 +9,17 @@ import { ProjekttypStep } from "./steps/projekttyp";
 import { ProjektStep } from "./steps/projekt";
 
 // Ein-Punkt-Dispatch für Step-Inhalte. Neue Steps = neuer Case.
-// AP 1.5/1.6/1.7 tauschen die verbleibenden Platzhalter (Auswahl/Prüfung/Bestätigung) aus.
+// AP 1.6/1.7 tauschen die verbleibenden Platzhalter (Prüfung/Bestätigung) aus.
 export function StepRenderer({
   step,
+  draftId,
   draftData,
+  sort,
 }: {
   step: WizardStepId;
+  draftId: string;
   draftData: WizardDraftData;
+  sort?: string;
 }) {
   const ownData = (draftData[step] ?? {}) as Record<string, unknown>;
 
@@ -30,7 +35,7 @@ export function StepRenderer({
     case "projekt":
       return <ProjektStep draftData={draftData} />;
     case "auswahl":
-      return <PlaceholderStep stepTitle="Installationspartner-Auswahl" nextAp="AP 1.5" />;
+      return <AuswahlStep draftId={draftId} draftData={draftData} sort={sort} />;
     case "pruefung":
       return <PlaceholderStep stepTitle="Prüfung & Positionsliste" nextAp="AP 1.6" />;
     case "bestaetigung":

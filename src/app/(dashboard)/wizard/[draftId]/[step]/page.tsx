@@ -10,11 +10,14 @@ import { getStep, isValidStepId } from "@/lib/wizard/steps";
 
 export default async function WizardStepPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ draftId: string; step: string }>;
+  searchParams: Promise<{ sort?: string }>;
 }) {
   const session = await requireAuth();
   const { draftId, step } = await params;
+  const { sort } = await searchParams;
 
   if (!isValidStepId(step)) redirect(`/wizard/${draftId}`);
 
@@ -35,7 +38,7 @@ export default async function WizardStepPage({
       <form action={saveStepAction} className="space-y-6">
         <input type="hidden" name="draftId" value={draft.id} />
         <input type="hidden" name="stepId" value={stepConfig.id} />
-        <StepRenderer step={stepConfig.id} draftData={draftData} />
+        <StepRenderer step={stepConfig.id} draftId={draft.id} draftData={draftData} sort={sort} />
         <WizardNavButtons step={stepConfig.id} />
       </form>
     </Card>

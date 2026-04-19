@@ -84,13 +84,18 @@ export const projektSchema = z.object({
   implementationWindow: z.string().min(2, "Umsetzungszeitraum ist erforderlich."),
 });
 
+// Schritt 6 — Auswahl (FA-ANG-050..055). Speichert die gewählte IP-Org-ID als Referenz.
+export const auswahlSchema = z.object({
+  ipOrgId: z.string().min(1, "Bitte Installationspartner wählen."),
+});
+
 export const WIZARD_STEPS = [
   { id: "projekttyp", title: "Projekttyp", order: 1, schema: projekttypSchema },
   { id: "kunde", title: "Kunde", order: 2, schema: kundeSchema },
   { id: "haus", title: "Haus", order: 3, schema: hausSchema },
   { id: "heizung", title: "Heizung", order: 4, schema: heizungSchema },
   { id: "projekt", title: "Projekt", order: 5, schema: projektSchema },
-  { id: "auswahl", title: "Auswahl", order: 6, schema: z.object({}).passthrough() },
+  { id: "auswahl", title: "Auswahl", order: 6, schema: auswahlSchema },
   { id: "pruefung", title: "Prüfung", order: 7, schema: z.object({}).passthrough() },
   { id: "bestaetigung", title: "Bestätigung", order: 8, schema: z.object({}).passthrough() },
 ] as const;
