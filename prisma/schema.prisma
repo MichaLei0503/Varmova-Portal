@@ -106,6 +106,7 @@ model Organization {
   installerProfile InstallerProfile?
   vpProjects       Project[]         @relation("ProjectVpOrg")
   ipProjects       Project[]         @relation("ProjectIpOrg")
+  wizardDrafts     WizardDraft[]
 }
 
 model InstallerProfile {
@@ -137,6 +138,7 @@ model User {
   notes           Note[]
   files           FileUpload[]
   auditLogs       AuditLog[]
+  wizardDrafts    WizardDraft[]
 }
 
 model Customer {
@@ -299,6 +301,24 @@ model FileUpload {
 
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+}
+
+// Wizard-Draft: persistiert den 8-Schritt-Angebotsassistenten,
+// damit ein abgebrochener Prozess wiederaufnehmbar ist und
+// die Draft-Phase nicht die Project-Tabelle mit nullbaren Feldern verwässert.
+model WizardDraft {
+  id          String       @id @default(cuid())
+  userId      String
+  vpOrgId     String
+  currentStep String       @default("projekttyp")
+  data        Json         @default("{}")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vpOrg       Organization @relation(fields: [vpOrgId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {
