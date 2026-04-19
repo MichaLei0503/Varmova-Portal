@@ -96,6 +96,10 @@ export const pruefungSchema = z.object({
   financingRequested: checkbox.default(false),
 });
 
+// Schritt 8 — Bestätigung. Hat keine eigenen Felder; der "Abschließen"-Button
+// triggert den Finalizer (Draft → Customer + Project + Offer + PDF + Mail).
+export const bestaetigungSchema = z.object({});
+
 export const WIZARD_STEPS = [
   { id: "projekttyp", title: "Projekttyp", order: 1, schema: projekttypSchema },
   { id: "kunde", title: "Kunde", order: 2, schema: kundeSchema },
@@ -104,7 +108,7 @@ export const WIZARD_STEPS = [
   { id: "projekt", title: "Projekt", order: 5, schema: projektSchema },
   { id: "auswahl", title: "Auswahl", order: 6, schema: auswahlSchema },
   { id: "pruefung", title: "Prüfung", order: 7, schema: pruefungSchema },
-  { id: "bestaetigung", title: "Bestätigung", order: 8, schema: z.object({}).passthrough() },
+  { id: "bestaetigung", title: "Bestätigung", order: 8, schema: bestaetigungSchema },
 ] as const;
 
 export type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];

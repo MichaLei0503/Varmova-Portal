@@ -1,16 +1,15 @@
 import type { WizardDraftData } from "@/lib/wizard/draft";
 import { WizardStepId } from "@/lib/wizard/steps";
 import { AuswahlStep } from "./steps/auswahl";
+import { BestaetigungStep } from "./steps/bestaetigung";
 import { HausStep } from "./steps/haus";
 import { HeizungStep } from "./steps/heizung";
 import { KundeStep } from "./steps/kunde";
-import { PlaceholderStep } from "./steps/placeholder";
 import { ProjekttypStep } from "./steps/projekttyp";
 import { ProjektStep } from "./steps/projekt";
 import { PruefungStep } from "./steps/pruefung";
 
 // Ein-Punkt-Dispatch für Step-Inhalte. Neue Steps = neuer Case.
-// AP 1.7 tauscht den verbleibenden Platzhalter (Bestätigung) aus.
 export function StepRenderer({
   step,
   draftId,
@@ -40,6 +39,6 @@ export function StepRenderer({
     case "pruefung":
       return <PruefungStep draftId={draftId} draftData={draftData} />;
     case "bestaetigung":
-      return <PlaceholderStep stepTitle="Angebot erstellen & versenden" nextAp="AP 1.7" />;
+      return <BestaetigungStep draftId={draftId} draftData={draftData} />;
   }
 }
