@@ -335,3 +335,47 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([actorId])
 }
+
+// ---------------------------------------------------------------------------
+// Lead-CRM (FA-CRM): manuell erfasste Leads + Meta Lead Ads über den Webhook
+// /api/leads/meta. currentHeating/timeframe bleiben freie Strings, weil die
+// Werte 1:1 aus Meta-Formularfeldern übernommen werden.
+// ---------------------------------------------------------------------------
+
+enum LeadStatus {
+  NEU
+  KONTAKTIERT
+  QUALIFIZIERT
+  TERMIN_VEREINBART
+  GEWONNEN
+  VERLOREN
+}
+
+enum LeadSource {
+  MANUELL
+  META
+  WEBSEITE
+  EMPFEHLUNG
+}
+
+model Lead {
+  id             String     @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
+  city           String?
+  postalCode     String?
+  currentHeating String?
+  timeframe      String?
+  message        String?
+  status         LeadStatus @default(NEU)
+  source         LeadSource @default(MANUELL)
+  metaLeadId     String?    @unique
+  metaFormId     String?
+  raw            Json?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}

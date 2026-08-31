@@ -11,6 +11,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Meta Lead Ads Webhook: wird von Meta-Servern ohne Session aufgerufen;
+  // authentifiziert sich über Verify-Token (GET) bzw. Signatur (POST).
+  if (pathname === "/api/leads/meta") {
+    return NextResponse.next();
+  }
+
   if (publicPaths.includes(pathname)) {
     return NextResponse.next();
   }
