@@ -175,12 +175,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </div>
           </Card>
 
-          <Card>
+          <Card id="files">
             <CardTitle>Dateien & Fotos</CardTitle>
             <form action={uploadProjectFilesAction} className="mt-4 space-y-3">
               <input type="hidden" name="projectId" value={project.id} />
               <Label htmlFor="files">Neue Dateien hochladen</Label>
-              <Input id="files" name="files" type="file" multiple />
+              <Input id="files" name="files" type="file" multiple accept="image/*,application/pdf" />
+              <p className="text-xs text-slate-400">Auf dem Smartphone: Tippen öffnet Kamera oder Galerie — ideal für Aufmaß-Fotos vor Ort.</p>
               <Button type="submit" className="w-full">Upload starten</Button>
             </form>
             <div className="mt-5 space-y-2 text-sm">

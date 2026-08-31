@@ -12,6 +12,20 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Varmova Partner Portal",
   description: "Digitale Vertriebs- und Installationsplattform für Varmi-Produkte.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black",
+    title: "Varmova",
+  },
+};
+
+export const viewport = {
+  themeColor: "#05070D",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

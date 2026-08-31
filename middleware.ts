@@ -7,7 +7,7 @@ const publicPaths = ["/login"];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/uploads")) {
+  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/uploads") || pathname.startsWith("/icons") || pathname === "/manifest.webmanifest") {
     return NextResponse.next();
   }
 

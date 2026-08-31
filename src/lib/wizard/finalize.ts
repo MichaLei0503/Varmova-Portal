@@ -192,6 +192,27 @@ export async function finalizeWizard(draft: WizardDraft): Promise<FinalizeResult
     console.warn("[finalize] post-commit side-effect failed", error);
   }
 
+  // Benachrichtigung an den zugewiesenen Installationspartner (FA-CRM/Montage-Flow):
+  // erster aktiver IP_ADMIN (sonst IP) der Organisation erhaelt den Auftrag per E-Mail.
+  try {
+    const installerUser = await prisma.user.findFirst({
+      where: { organizationId: auswahl.ipOrgId, isActive: true, role: { in: ["IP_ADMIN", "IP"] } },
+      orderBy: { role: "desc" },
+    });
+    if (installerUser) {
+      const baseUrl = process.env.NEXTAUTH_URL ?? "https://varmova-portal.vercel.app";
+      await emailProvider.send({
+        to: installerUser.email,
+        subject: `Neuer Varmi-Auftrag ${committed.offerNumber}`,
+        bodyText: `Hallo ${installerUser.name},\n\nIhnen wurde ein neuer Varmi-Auftrag zugewiesen.\n\nAngebot: ${committed.offerNumber}\nProjekt: ${baseUrl}/projects/${committed.projectId}\n\nDort finden Sie Aufmassdaten, Fotos und Kundenkontakt.\n\nIhr Varmova Partner Portal`,
+      });
+    } else {
+      console.warn(`[finalize] Kein aktiver IP-Benutzer fuer Organisation ${auswahl.ipOrgId} gefunden.`);
+    }
+  } catch (error) {
+    console.warn("[finalize] Installer-Benachrichtigung fehlgeschlagen", error);
+  }
+
   return {
     projectId: committed.projectId,
     offerId: committed.offerId,

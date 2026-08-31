@@ -85,9 +85,24 @@ export function AppShell({
             </div>
             <LogoutButton />
           </header>
-          <main>{children}</main>
+          <main className="pb-24 lg:pb-0">{children}</main>
         </div>
       </div>
+
+      {/* Mobile Bottom-Navigation — die Sidebar ist unter lg ausgeblendet */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-night px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 lg:hidden">
+        <div className="mx-auto flex max-w-md items-stretch justify-around">
+          {navigation.filter((item) => !item.external).slice(0, 5).map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.label} href={item.href} className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-white/70 transition hover:text-white">
+                <Icon className="h-5 w-5 text-copper" />
+                <span className="w-full truncate text-center text-[10px] font-medium">{item.label.replace("Installateur Dashboard", "Aufträge").replace(" Dashboard", "")}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
