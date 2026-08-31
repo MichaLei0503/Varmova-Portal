@@ -35,7 +35,8 @@ export function Button({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "outline" | "ghost" | "danger" }) {
   const variants = {
-    default: "bg-brand text-white hover:bg-teal-700",
+    // CI: Copper-CTA trägt Night-Text, Hover wird dunkler (nie heller).
+    default: "bg-copper text-night hover:bg-[#C5854A]",
     outline: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
     ghost: "bg-transparent text-slate-700 hover:bg-slate-100",
     danger: "bg-danger text-white hover:bg-red-700",
@@ -44,7 +45,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex h-10 items-center justify-center rounded-full px-5 text-sm font-medium transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
         variants[variant],
         className,
       )}

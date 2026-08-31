@@ -2,6 +2,7 @@ import Link from "next/link";
 import { OfferStatus, Role } from "@prisma/client";
 import { PageHeader, StatCard } from "@/components/ui";
 import { ProjectTable } from "@/components/project-table";
+import { ToolCards } from "@/components/tool-cards";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
           <StatCard title="An Installateur übergeben" value={installerAssigned} caption="Status „Installateur“" />
           <StatCard title="Installation abgeschlossen" value={installationDone} caption="Status „Installation abgeschlossen“" />
         </div>
+        <ToolCards />
         <ProjectTable projects={recentProjects} />
       </div>
     );
@@ -70,6 +72,7 @@ export default async function DashboardPage() {
           <StatCard title="Installation geplant" value={scheduled} caption="Termin fixiert" />
           <StatCard title="Abgeschlossen" value={done} caption="Montage erfolgt" />
         </div>
+        <ToolCards />
         <ProjectTable projects={projects} />
       </div>
     );

@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { Building2, ClipboardList, LayoutDashboard, Package, Settings, Users } from "lucide-react";
+import {
+  Building2,
+  Calculator,
+  ClipboardList,
+  GraduationCap,
+  LayoutDashboard,
+  Package,
+  Settings,
+  Users,
+} from "lucide-react";
 import { roleLabels } from "@/lib/utils";
+import { CALCULATOR_URL } from "@/lib/tools";
 import { LogoutButton } from "@/components/logout-button";
 
 const VP_ROLES: Role[] = ["VP", "VP_ADMIN"];
@@ -23,25 +33,27 @@ export function AppShell({
   const isAdmin = role === "VARMOVA_ADMIN";
 
   const navigation = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, visible: true },
-    { href: "/projects", label: "Projektliste", icon: ClipboardList, visible: isVp || isVarmova },
-    { href: "/projects/new", label: "Neues Projekt", icon: Building2, visible: isVp || isAdmin },
-    { href: "/installer", label: "Installateur Dashboard", icon: ClipboardList, visible: isIp || isAdmin },
-    { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, visible: isAdmin },
-    { href: "/admin/users", label: "Benutzer", icon: Users, visible: isAdmin },
-    { href: "/admin/settings/pricing", label: "Produktkatalog", icon: Package, visible: isAdmin },
-    { href: "/admin/settings/pricing", label: "Einstellungen", icon: Settings, visible: false },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, visible: true, external: false },
+    { href: "/projects", label: "Projektliste", icon: ClipboardList, visible: isVp || isVarmova, external: false },
+    { href: "/projects/new", label: "Neues Projekt", icon: Building2, visible: isVp || isAdmin, external: false },
+    { href: "/installer", label: "Installateur Dashboard", icon: ClipboardList, visible: isIp || isAdmin, external: false },
+    { href: "/academy", label: "Varmi Academy", icon: GraduationCap, visible: true, external: false },
+    { href: CALCULATOR_URL ?? "/academy", label: "Wirtschaftlichkeitsrechner", icon: Calculator, visible: Boolean(CALCULATOR_URL), external: true },
+    { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, visible: isAdmin, external: false },
+    { href: "/admin/users", label: "Benutzer", icon: Users, visible: isAdmin, external: false },
+    { href: "/admin/settings/pricing", label: "Produktkatalog", icon: Package, visible: isAdmin, external: false },
+    { href: "/admin/settings/pricing", label: "Einstellungen", icon: Settings, visible: false, external: false },
   ].filter((item) => item.visible);
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 px-4 py-4 lg:px-6">
-        <aside className="hidden w-72 shrink-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft lg:block">
-          <div className="border-b border-slate-100 pb-5">
+        <aside className="hidden w-72 shrink-0 overflow-hidden rounded-3xl bg-night p-5 shadow-soft lg:block [background-image:radial-gradient(ellipse_360px_240px_at_85%_0%,rgba(232,162,96,0.14),transparent_70%)]">
+          <div className="border-b border-white/10 pb-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-copper">Varmova</p>
-            <h1 className="mt-2 text-xl font-semibold text-night">Partner Portal</h1>
-            <p className="mt-3 text-sm text-slate-500">{name}</p>
-            <p className="text-xs text-slate-400">{roleLabels[role]}</p>
+            <h1 className="mt-2 text-xl font-semibold text-white">Partner Portal</h1>
+            <p className="mt-3 text-sm text-white/70">{name}</p>
+            <p className="text-xs text-white/50">{roleLabels[role]}</p>
           </div>
 
           <nav className="mt-6 space-y-1">
@@ -49,11 +61,13 @@ export function AppShell({
               const Icon = item.icon;
               return (
                 <Link
-                  key={item.href}
+                  key={item.label}
                   href={item.href}
-                  className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-night"
+                  target={item.external ? "_blank" : undefined}
+                  rel={item.external ? "noopener noreferrer" : undefined}
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 text-copper" />
                   {item.label}
                 </Link>
               );
