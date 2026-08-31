@@ -235,6 +235,8 @@ model Offer {
   validUntil         DateTime?
   cancellationReason String?
   signedAt           DateTime?
+  // Öffentlicher Signatur-Link /angebot/<token> (FA-ANG-080): unguessbar, einmalig.
+  signingToken       String?     @unique
   signatureProvider  String?
   signatureRef       String?
   hintText           String?
@@ -371,6 +373,9 @@ model Lead {
   status         LeadStatus @default(NEU)
   source         LeadSource @default(MANUELL)
   metaLeadId     String?    @unique
+  photoUrls      String[]   @default([])
+  buildingYear   Int?
+  livingAreaSqm  Int?
   metaFormId     String?
   raw            Json?
   createdAt      DateTime   @default(now())

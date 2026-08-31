@@ -96,6 +96,11 @@ export default async function LeadsPage() {
                   <td className="px-5 py-3">
                     <p className="font-medium text-night">{lead.name}</p>
                     <p className="text-xs text-slate-400">{[lead.phone, lead.email].filter(Boolean).join(" · ") || "—"}</p>
+                    {lead.photoUrls.length > 0 ? (
+                      <a href={lead.photoUrls[0]} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-medium text-[#8a5a2a] underline underline-offset-2">
+                        {lead.photoUrls.length} Foto{lead.photoUrls.length > 1 ? "s" : ""} ansehen
+                      </a>
+                    ) : null}
                   </td>
                   <td className="px-5 py-3 text-slate-600">{lead.city ?? "—"}</td>
                   <td className="px-5 py-3 text-slate-600">{lead.postalCode ?? "—"}</td>

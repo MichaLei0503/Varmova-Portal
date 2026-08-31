@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import {
   Building2,
   Calculator,
+  Camera,
   Contact,
   ClipboardList,
   GraduationCap,
@@ -36,6 +37,7 @@ export function AppShell({
   const navigation = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, visible: true, external: false },
     { href: "/leads", label: "Leads", icon: Contact, visible: isVp || isVarmova, external: false },
+    { href: "/erfassung", label: "Erfassung", icon: Camera, visible: isVp || isAdmin, external: false },
     { href: "/projects", label: "Projektliste", icon: ClipboardList, visible: isVp || isVarmova, external: false },
     { href: "/projects/new", label: "Neues Projekt", icon: Building2, visible: isVp || isAdmin, external: false },
     { href: "/installer", label: "Installateur Dashboard", icon: ClipboardList, visible: isIp || isAdmin, external: false },

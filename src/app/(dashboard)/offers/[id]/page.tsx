@@ -83,8 +83,8 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="w-full min-w-[640px] divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Position</th>

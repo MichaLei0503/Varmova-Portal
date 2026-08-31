@@ -17,6 +17,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Öffentliche Angebots-Annahme durch den Kunden (unguessbarer Token in der URL).
+  if (pathname.startsWith("/angebot/")) {
+    return NextResponse.next();
+  }
+
   if (publicPaths.includes(pathname)) {
     return NextResponse.next();
   }

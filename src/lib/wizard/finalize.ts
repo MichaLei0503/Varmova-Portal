@@ -2,6 +2,7 @@ import { NoteVisibility, OfferStatus, Prisma, WizardDraft } from "@prisma/client
 import { getEmailProvider } from "@/lib/integrations/email";
 import { getPdfProvider } from "@/lib/integrations/pdf";
 import { generateOfferNumber } from "@/lib/offer/offer-number";
+import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { calculateOffer } from "@/lib/pricing";
 import { generateProjectNumber } from "@/lib/project";
@@ -128,6 +129,7 @@ export async function finalizeWizard(draft: WizardDraft): Promise<FinalizeResult
         offerNumber,
         projectId: project.id,
         status: OfferStatus.OFFER_CREATED,
+        signingToken: crypto.randomBytes(24).toString("hex"),
         vatRatePercent: VAT_RATE_PERCENT,
         subtotalCents: calculation.subtotalCents,
         vatCents: calculation.vatCents,
@@ -172,7 +174,7 @@ export async function finalizeWizard(draft: WizardDraft): Promise<FinalizeResult
 
     await tx.wizardDraft.delete({ where: { id: draft.id } });
 
-    return { projectId: project.id, offerId: offer.id, offerNumber, customerEmail: customer.email };
+    return { projectId: project.id, offerId: offer.id, offerNumber, customerEmail: customer.email, signingToken: offer.signingToken };
   });
 
   const pdfProvider = getPdfProvider();
@@ -183,34 +185,15 @@ export async function finalizeWizard(draft: WizardDraft): Promise<FinalizeResult
   try {
     const pdf = await pdfProvider.generateOfferPdf({ offerId: committed.offerId, offerNumber: committed.offerNumber });
     pdfUrl = pdf.url;
+    const baseUrl = process.env.NEXTAUTH_URL ?? "https://varmova-portal.vercel.app";
+    const signUrl = `${baseUrl}/angebot/${committed.signingToken}`;
     await emailProvider.send({
       to: committed.customerEmail,
       subject: `Ihr Varmi-Angebot ${committed.offerNumber}`,
-      bodyText: `Sehr geehrte Kundin, sehr geehrter Kunde,\n\nIhr persönliches Angebot ${committed.offerNumber} steht zur Prüfung und digitalen Unterzeichnung bereit:\n${pdfUrl}\n\nMit freundlichen Grüßen\nIhr Varmova-Team`,
+      bodyText: `Sehr geehrte Kundin, sehr geehrter Kunde,\n\nIhr persönliches Angebot ${committed.offerNumber} steht zur Prüfung und digitalen Annahme bereit:\n${signUrl}\n\nDort können Sie das Angebot einsehen und verbindlich annehmen. Erst nach Ihrer Annahme wird der Installationstermin geplant.\n\nMit freundlichen Grüßen\nIhr Varmova-Team`,
     });
   } catch (error) {
     console.warn("[finalize] post-commit side-effect failed", error);
-  }
-
-  // Benachrichtigung an den zugewiesenen Installationspartner (FA-CRM/Montage-Flow):
-  // erster aktiver IP_ADMIN (sonst IP) der Organisation erhaelt den Auftrag per E-Mail.
-  try {
-    const installerUser = await prisma.user.findFirst({
-      where: { organizationId: auswahl.ipOrgId, isActive: true, role: { in: ["IP_ADMIN", "IP"] } },
-      orderBy: { role: "desc" },
-    });
-    if (installerUser) {
-      const baseUrl = process.env.NEXTAUTH_URL ?? "https://varmova-portal.vercel.app";
-      await emailProvider.send({
-        to: installerUser.email,
-        subject: `Neuer Varmi-Auftrag ${committed.offerNumber}`,
-        bodyText: `Hallo ${installerUser.name},\n\nIhnen wurde ein neuer Varmi-Auftrag zugewiesen.\n\nAngebot: ${committed.offerNumber}\nProjekt: ${baseUrl}/projects/${committed.projectId}\n\nDort finden Sie Aufmassdaten, Fotos und Kundenkontakt.\n\nIhr Varmova Partner Portal`,
-      });
-    } else {
-      console.warn(`[finalize] Kein aktiver IP-Benutzer fuer Organisation ${auswahl.ipOrgId} gefunden.`);
-    }
-  } catch (error) {
-    console.warn("[finalize] Installer-Benachrichtigung fehlgeschlagen", error);
   }
 
   return {
