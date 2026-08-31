@@ -46,8 +46,8 @@ export function LoginForm() {
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-900">Demo-Zugang</p>
         <p>admin@varmova.local / Demo1234!</p>
-        <p>sales1@varmova.local / Demo1234!</p>
-        <p>installer1@varmova.local / Demo1234!</p>
+        <p>vp@varmova.local / Demo1234! (Vertrieb)</p>
+        <p>ip@varmova.local / Demo1234! (Installateur)</p>
       </div>
     </form>
   );
