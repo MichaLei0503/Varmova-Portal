@@ -358,6 +358,12 @@ enum LeadSource {
   META
   WEBSEITE
   EMPFEHLUNG
+  FUNNEL
+}
+
+enum LeadSegment {
+  B2C
+  B2B
 }
 
 model Lead {
@@ -378,6 +384,16 @@ model Lead {
   livingAreaSqm  Int?
   metaFormId     String?
   raw            Json?
+  // Funnel-Felder (FA-FUNNEL): B2B/B2C-Weiche, Qualifizierung, DSGVO & Double-Opt-in
+  segment        LeadSegment?
+  company        String?
+  website        String?
+  contactRole    String?
+  buildingType   String?
+  hasPv          String?
+  consentAt      DateTime?
+  doiSentAt      DateTime?
+  doiConfirmedAt DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

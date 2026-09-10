@@ -17,6 +17,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Ads-Domain partner.varmova.de: Startseite ist dort die öffentliche
+  // B2B-Landingpage (Rewrite in next.config.mjs) — keine Session nötig.
+  const host = request.headers.get("host") ?? "";
+  if (host === "partner.varmova.de" && pathname === "/") {
+    return NextResponse.next();
+  }
+
+  // Öffentlicher Lead-Funnel (FA-FUNNEL): statische Funnel-Seiten unter
+  // /funnel/*, Lead-Annahme und Double-Opt-in-Bestätigung ohne Session.
+  if (
+    pathname === "/funnel" ||
+    pathname.startsWith("/funnel/") ||
+    pathname === "/partner-werden" ||
+    pathname.startsWith("/partner/") ||
+    pathname === "/api/leads/funnel" ||
+    pathname === "/api/leads/confirm"
+  ) {
+    return NextResponse.next();
+  }
+
   // Öffentliche Angebots-Annahme durch den Kunden (unguessbarer Token in der URL).
   if (pathname.startsWith("/angebot/")) {
     return NextResponse.next();

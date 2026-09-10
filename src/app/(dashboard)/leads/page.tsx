@@ -21,6 +21,7 @@ const SOURCE_LABEL: Record<LeadSource, string> = {
   META: "Meta Ads",
   WEBSEITE: "Webseite",
   EMPFEHLUNG: "Empfehlung",
+  FUNNEL: "Funnel",
 };
 
 const STATUS_STYLE: Record<LeadStatus, string> = {
@@ -46,7 +47,7 @@ export default async function LeadsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Leads"
-        description="Anfragen aus Meta Ads, Webseite und manueller Erfassung — vom Erstkontakt bis zum Termin."
+        description="Anfragen aus Funnel, Meta Ads, Webseite und manueller Erfassung — vom Erstkontakt bis zum Termin."
       />
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -94,8 +95,21 @@ export default async function LeadsPage() {
               ) : leads.map((lead) => (
                 <tr key={lead.id} className="border-b border-slate-100 align-top last:border-0">
                   <td className="px-5 py-3">
-                    <p className="font-medium text-night">{lead.name}</p>
+                    <p className="font-medium text-night">
+                      {lead.name}
+                      {lead.segment ? (
+                        <span className={`ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide ${lead.segment === "B2B" ? "bg-night text-copper" : "bg-copper/15 text-[#8a5a2a]"}`}>
+                          {lead.segment}
+                        </span>
+                      ) : null}
+                    </p>
+                    {lead.company ? <p className="text-xs text-slate-500">{lead.company}</p> : null}
                     <p className="text-xs text-slate-400">{[lead.phone, lead.email].filter(Boolean).join(" · ") || "—"}</p>
+                    {lead.source === "FUNNEL" ? (
+                      <p className={`mt-0.5 text-[11px] font-medium ${lead.doiConfirmedAt ? "text-emerald-600" : "text-amber-600"}`}>
+                        {lead.doiConfirmedAt ? "E-Mail bestätigt (Double-Opt-in)" : "E-Mail-Bestätigung ausstehend"}
+                      </p>
+                    ) : null}
                     {lead.photoUrls.length > 0 ? (
                       <a href={lead.photoUrls[0]} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-medium text-[#8a5a2a] underline underline-offset-2">
                         {lead.photoUrls.length} Foto{lead.photoUrls.length > 1 ? "s" : ""} ansehen
@@ -107,7 +121,7 @@ export default async function LeadsPage() {
                   <td className="px-5 py-3 text-slate-600">{lead.currentHeating ?? "—"}</td>
                   <td className="px-5 py-3 text-slate-600">{lead.timeframe ?? "—"}</td>
                   <td className="px-5 py-3">
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${lead.source === "META" ? "bg-night text-copper" : "bg-slate-100 text-slate-600"}`}>
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${lead.source === "META" || lead.source === "FUNNEL" ? "bg-night text-copper" : "bg-slate-100 text-slate-600"}`}>
                       {SOURCE_LABEL[lead.source]}
                     </span>
                   </td>
