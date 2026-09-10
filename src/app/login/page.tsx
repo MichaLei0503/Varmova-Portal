@@ -11,7 +11,7 @@ export default async function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
       <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="hidden rounded-3xl bg-night p-10 text-white shadow-soft lg:block [background-image:radial-gradient(ellipse_420px_280px_at_85%_10%,rgba(232,162,96,0.18),transparent_70%)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-copper">Next Gen Heating</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-copper">Einfach. Intelligent. Warm.</p>
           <h1 className="mt-6 text-4xl font-semibold leading-tight">Partner Portal für Vertrieb, Angebot und Installateur-Übergabe.</h1>
           <p className="mt-4 max-w-xl text-base text-white/70">
             Projekt erfassen, Angebot erzeugen, Installateur zuweisen — und mit Academy und Rechner direkt verkaufsfähig sein.

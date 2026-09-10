@@ -107,7 +107,7 @@ function mailShell(contentHtml: string): string {
         <tr>
           <td style="background:#05070D;border-radius:16px 16px 0 0;padding:26px 40px;">
             <span style="font-family:Inter,Arial,sans-serif;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#FFFFFF;">Varmova</span>
-            <span style="font-family:Inter,Arial,sans-serif;font-size:11px;letter-spacing:0.16em;color:#E8A260;text-transform:uppercase;padding-left:12px;">Next Gen Heating</span>
+            <span style="font-family:Inter,Arial,sans-serif;font-size:11px;letter-spacing:0.16em;color:#E8A260;text-transform:uppercase;padding-left:12px;">Einfach. Intelligent. Warm.</span>
           </td>
         </tr>
         <tr>
