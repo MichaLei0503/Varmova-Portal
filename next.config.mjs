@@ -24,6 +24,7 @@ const nextConfig = {
         { source: '/funnel', destination: '/funnel/index.html' },
         { source: '/funnel/bestaetigt', destination: '/funnel/bestaetigt.html' },
         { source: '/partner-werden', destination: '/partner/index.html' },
+        { source: '/datenschutz', destination: '/datenschutz/index.html' },
       ],
     };
   },

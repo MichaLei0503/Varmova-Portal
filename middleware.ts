@@ -31,6 +31,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/funnel/") ||
     pathname === "/partner-werden" ||
     pathname.startsWith("/partner/") ||
+    pathname === "/datenschutz" ||
+    pathname.startsWith("/datenschutz/") ||
+    pathname.startsWith("/fonts/") ||
     pathname === "/api/leads/funnel" ||
     pathname === "/api/leads/confirm"
   ) {
