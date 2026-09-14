@@ -44,55 +44,114 @@ export function resolveSegment(
     : LeadSegment.B2B;
 }
 
-/** Legt einen Lead aus Graph-API-Daten an. Liefert true, wenn er neu war. */
-export async function upsertGraphLead(lead: GraphLead): Promise<boolean> {
+/** Frageschlüssel → exakter Fragetext aus dem Meta-Formular. */
+export type FormLabels = Record<string, string>;
+
+/** Aus "wie_viele_monteure_sind_bei_ihnen_im_einsatz" wird lesbarer Text. */
+function humanizeKey(key: string): string {
+  const text = key.replace(/_/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export type UpsertOutcome = "neu" | "aktualisiert" | "uebersprungen";
+
+/**
+ * Legt einen Lead aus Graph-API-Daten an oder frischt einen vorhandenen auf.
+ * `labels` liefert die Originalfragen des Formulars; fehlen sie, wird der
+ * Feldschlüssel lesbar gemacht.
+ *
+ * Der Bearbeitungsstatus bleibt beim Aktualisieren unangetastet — nur die
+ * Formulardaten kommen frisch aus Meta.
+ */
+export async function upsertGraphLead(
+  lead: GraphLead,
+  labels: FormLabels = {},
+): Promise<UpsertOutcome> {
   const leadId = lead.id;
-  if (!leadId) return false;
+  if (!leadId) return "uebersprungen";
 
   const existing = await prisma.lead.findUnique({
     where: { metaLeadId: leadId },
     select: { id: true },
   });
-  if (existing) return false;
 
+  // Antworten in Formularreihenfolge behalten — das ist die Ansicht im CRM.
+  const answers: Array<{ key: string; label: string; value: string }> = [];
   const fields: Record<string, string> = {};
   for (const f of lead.field_data ?? []) {
-    if (f.name) fields[f.name.toLowerCase()] = (f.values ?? []).join(", ");
+    if (!f.name) continue;
+    const key = f.name.toLowerCase();
+    const value = (f.values ?? []).join(", ");
+    fields[key] = value;
+    answers.push({ key, label: labels[key] ?? humanizeKey(f.name), value });
   }
+
+  // Jedes Feld wird nur einmal vergeben, sonst landet z. B. "company_name"
+  // über den Teiltreffer "name" fälschlich als Personenname im CRM.
+  const used = new Set<string>();
   const pick = (...keys: string[]) => {
-    for (const k of keys) if (fields[k]) return fields[k];
+    for (const k of keys) {
+      if (fields[k] && !used.has(k)) {
+        used.add(k);
+        return fields[k];
+      }
+    }
     // Teiltreffer für individuell benannte Formularfragen
     for (const key of Object.keys(fields)) {
-      if (keys.some((k) => key.includes(k))) return fields[key];
+      if (used.has(key) || !fields[key]) continue;
+      if (keys.some((k) => key.includes(k))) {
+        used.add(key);
+        return fields[key];
+      }
     }
     return undefined;
   };
 
+  // Reihenfolge ist wichtig: erst Firma, dann Person.
+  const company = pick("company_name", "firma", "unternehmen", "betriebsname");
+  const companyType = pick(
+    "betriebstyp",
+    "beschreibt_ihren_betrieb",
+    "gewerk",
+    "branche",
+    "company_type",
+  );
   const fullName =
-    pick("full_name", "name") ||
-    [pick("first_name", "vorname"), pick("last_name", "nachname")].filter(Boolean).join(" ");
-  const company = pick("company_name", "firma", "unternehmen", "betrieb");
-  const companyType = pick("betriebstyp", "betrieb_beschreibt", "gewerk", "branche", "company_type");
+    pick("full_name", "vollstaendiger_name", "vollständiger_name", "ansprechpartner") ||
+    [pick("first_name", "vorname"), pick("last_name", "nachname")]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    pick("name");
+
+  const data = {
+    name: fullName || company || `Meta-Lead ${leadId}`,
+    email: pick("email", "e-mail") ?? null,
+    phone: pick("phone_number", "phone", "telefon") ?? null,
+    city: pick("city", "ort", "stadt", "wohnort") ?? null,
+    postalCode: pick("zip_code", "zip", "plz", "postal_code", "postleitzahl") ?? null,
+    currentHeating: pick("aktuelle_heizung", "heizung", "heizsystem", "current_heating") ?? null,
+    timeframe: pick("realisierungszeitraum", "zeitraum", "wann", "timeframe", "umsetzung") ?? null,
+    segment: resolveSegment(lead.form_id, company, companyType),
+    company: company ?? null,
+    metaFormId: lead.form_id ?? null,
+    raw: answers,
+  };
+
+  if (existing) {
+    await prisma.lead.update({ where: { id: existing.id }, data });
+    return "aktualisiert";
+  }
 
   await prisma.lead.create({
     data: {
-      name: fullName || `Meta-Lead ${leadId}`,
-      email: pick("email", "e-mail"),
-      phone: pick("phone_number", "phone", "telefon"),
-      city: pick("city", "ort", "stadt", "wohnort"),
-      postalCode: pick("zip_code", "zip", "plz", "postal_code", "postleitzahl"),
-      currentHeating: pick("aktuelle_heizung", "heizung", "heizsystem", "current_heating"),
-      timeframe: pick("realisierungszeitraum", "zeitraum", "wann", "timeframe", "umsetzung"),
-      segment: resolveSegment(lead.form_id, company, companyType),
-      company: company ?? null,
+      ...data,
       source: LeadSource.META,
       metaLeadId: leadId,
-      metaFormId: lead.form_id ?? null,
-      raw: fields,
       createdAt: lead.created_time ? new Date(lead.created_time) : undefined,
     },
   });
-  return true;
+  return "neu";
 }
 
 /** Einen einzelnen Lead über seine ID nachladen (Webhook-Weg). */
@@ -113,10 +172,40 @@ export async function importMetaLeadById(leadId: string): Promise<void> {
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error(`Graph API ${res.status}: ${await res.text()}`);
-  await upsertGraphLead((await res.json()) as GraphLead);
+  const graphLead = (await res.json()) as GraphLead;
+  const labels = graphLead.form_id ? await fetchFormLabels(graphLead.form_id, token) : {};
+  await upsertGraphLead(graphLead, labels);
 }
 
-export type ImportResult = { imported: number; seen: number; forms: number };
+/** Originalfragen eines Formulars laden (Schlüssel → Fragetext). */
+async function fetchFormLabels(formId: string, token: string): Promise<FormLabels> {
+  try {
+    const res = await fetch(
+      `${GRAPH}/${formId}?fields=questions{key,label}&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return {};
+    const data = (await res.json()) as { questions?: Array<{ key?: string; label?: string }> };
+    return toLabelMap(data.questions);
+  } catch {
+    return {};
+  }
+}
+
+function toLabelMap(questions: Array<{ key?: string; label?: string }> | undefined): FormLabels {
+  const map: FormLabels = {};
+  for (const q of questions ?? []) {
+    if (q.key && q.label) map[q.key.toLowerCase()] = q.label;
+  }
+  return map;
+}
+
+export type ImportResult = {
+  imported: number;
+  updated: number;
+  seen: number;
+  forms: number;
+};
 
 /** Graph-Fehler in eine Meldung übersetzen, die im Portal weiterhilft. */
 async function graphError(step: string, res: Response): Promise<string> {
@@ -166,6 +255,7 @@ export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResu
   }
 
   let imported = 0;
+  let updated = 0;
   let seen = 0;
   let forms = 0;
 
@@ -173,14 +263,18 @@ export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResu
     // Leads liefert Meta zuverlässig nur gegen den Page Access Token aus.
     const pageToken = page.token ?? token;
     const formRes = await fetch(
-      `${GRAPH}/${page.id}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(pageToken)}`,
+      `${GRAPH}/${page.id}/leadgen_forms?fields=id,name,questions{key,label}&limit=100&access_token=${encodeURIComponent(pageToken)}`,
       { cache: "no-store" },
     );
     if (!formRes.ok) throw new Error(await graphError("Formulare laden", formRes));
-    const formData = (await formRes.json()) as { data?: Array<{ id: string }> };
+    const formData = (await formRes.json()) as {
+      data?: Array<{ id: string; questions?: Array<{ key?: string; label?: string }> }>;
+    };
 
     for (const form of formData.data ?? []) {
       forms += 1;
+      // Originalfragen des Formulars — damit im CRM exakt der Wortlaut steht.
+      const labels = toLabelMap(form.questions);
       let url:
         | string
         | undefined = `${GRAPH}/${form.id}/leads?fields=id,form_id,created_time,field_data&limit=${limitPerForm}&access_token=${encodeURIComponent(pageToken)}`;
@@ -195,14 +289,16 @@ export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResu
         };
         for (const lead of payload.data ?? []) {
           seen += 1;
-          if (await upsertGraphLead(lead)) imported += 1;
+          const outcome = await upsertGraphLead(lead, labels);
+          if (outcome === "neu") imported += 1;
+          else if (outcome === "aktualisiert") updated += 1;
         }
         url = payload.paging?.next;
       }
     }
   }
 
-  return { imported, seen, forms };
+  return { imported, updated, seen, forms };
 }
 
 type ResolvedPage = { id: string; token?: string };

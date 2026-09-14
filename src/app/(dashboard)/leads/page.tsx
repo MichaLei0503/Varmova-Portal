@@ -35,6 +35,29 @@ const STATUS_STYLE: Record<LeadStatus, string> = {
   VERLOREN: "bg-rose-100 text-rose-700",
 };
 
+type Answer = { key: string; label: string; value: string };
+
+/**
+ * Formularantworten aus dem Lead lesen. Neue Meta-Importe speichern eine
+ * geordnete Liste mit Originalfrage; ältere Datensätze eine flache Map.
+ */
+function readAnswers(raw: unknown): Answer[] {
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (a): a is Answer =>
+        !!a && typeof a === "object" && typeof (a as Answer).value === "string",
+    );
+  }
+  if (raw && typeof raw === "object") {
+    return Object.entries(raw as Record<string, unknown>).map(([key, value]) => ({
+      key,
+      label: key.replace(/_/g, " "),
+      value: String(value ?? ""),
+    }));
+  }
+  return [];
+}
+
 const TABS = [
   { key: "alle", label: "Alle" },
   { key: "b2b", label: "B2B" },
@@ -44,7 +67,7 @@ const TABS = [
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ segment?: string; import?: string; neu?: string; gesamt?: string; formulare?: string; meldung?: string }>;
+  searchParams: Promise<{ segment?: string; import?: string; neu?: string; aktualisiert?: string; gesamt?: string; formulare?: string; meldung?: string }>;
 }) {
   const session = await requireAuth();
   if (!CRM_ROLES.includes(session.user.role)) redirect("/unauthorized");
@@ -85,8 +108,10 @@ export default async function LeadsPage({
 
       {sp.import === "ok" ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">
-          <strong>{sp.neu ?? "0"} neue Leads importiert.</strong> {sp.gesamt ?? "0"} Leads aus{" "}
-          {sp.formulare ?? "0"} Formular(en) geprüft — bereits vorhandene wurden übersprungen.
+          <strong>
+            {sp.neu ?? "0"} neue Leads importiert, {sp.aktualisiert ?? "0"} aktualisiert.
+          </strong>{" "}
+          {sp.gesamt ?? "0"} Leads aus {sp.formulare ?? "0"} Formular(en) geprüft.
         </div>
       ) : null}
       {sp.import === "fehler" ? (
@@ -163,7 +188,9 @@ export default async function LeadsPage({
                     ? "Noch keine Leads. Sobald die Meta-Schnittstelle verbunden ist, laufen Anfragen hier automatisch ein."
                     : `Keine ${activeTab.toUpperCase()}-Leads in dieser Ansicht.`}
                 </td></tr>
-              ) : leads.map((lead) => (
+              ) : leads.map((lead) => {
+                const answers = readAnswers(lead.raw);
+                return (
                 <tr key={lead.id} className="border-b border-slate-100 align-top last:border-0">
                   <td className="px-5 py-3">
                     <p className="font-medium text-night">
@@ -186,6 +213,30 @@ export default async function LeadsPage({
                         {lead.photoUrls.length} Foto{lead.photoUrls.length > 1 ? "s" : ""} ansehen
                       </a>
                     ) : null}
+                    {answers.length > 0 ? (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs font-medium text-[#8a5a2a] underline underline-offset-2">
+                          Alle Formularantworten ({answers.length})
+                        </summary>
+                        <dl className="mt-2 max-w-md space-y-2 rounded-xl bg-slate-50 p-3">
+                          {answers.map((answer) => (
+                            <div key={answer.key}>
+                              <dt className="text-[11px] uppercase tracking-wide text-slate-400">
+                                {answer.label}
+                              </dt>
+                              <dd className="text-xs font-medium text-night">
+                                {answer.value || "—"}
+                              </dd>
+                            </div>
+                          ))}
+                          {lead.metaFormId ? (
+                            <p className="border-t border-slate-200 pt-2 text-[11px] text-slate-400">
+                              Lead-Formular-ID {lead.metaFormId}
+                            </p>
+                          ) : null}
+                        </dl>
+                      </details>
+                    ) : null}
                   </td>
                   <td className="px-5 py-3 text-slate-600">{lead.city ?? "—"}</td>
                   <td className="px-5 py-3 text-slate-600">{lead.postalCode ?? "—"}</td>
@@ -197,7 +248,10 @@ export default async function LeadsPage({
                     </span>
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap text-slate-500">
-                    {new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" }).format(lead.createdAt)}
+                    {new Intl.DateTimeFormat("de-DE", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(lead.createdAt)}
                   </td>
                   <td className="px-5 py-3">
                     <form action={updateLeadStatusAction} className="flex items-center gap-2">
@@ -215,7 +269,8 @@ export default async function LeadsPage({
                     </form>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

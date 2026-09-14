@@ -60,7 +60,8 @@ export async function importMetaLeadsAction() {
     const result = await importAllMetaLeads();
     revalidatePath("/leads");
     redirect(
-      `/leads?import=ok&neu=${result.imported}&gesamt=${result.seen}&formulare=${result.forms}`,
+      `/leads?import=ok&neu=${result.imported}&aktualisiert=${result.updated}` +
+        `&gesamt=${result.seen}&formulare=${result.forms}`,
     );
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error; // Next-Redirect
