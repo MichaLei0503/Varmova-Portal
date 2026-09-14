@@ -142,8 +142,23 @@ async function graphError(step: string, res: Response): Promise<string> {
  * Ohne META_PAGE_ID werden die Seiten des Tokens automatisch ermittelt.
  */
 export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResult> {
-  const token = process.env.META_ACCESS_TOKEN;
-  if (!token) throw new Error("META_ACCESS_TOKEN ist nicht gesetzt.");
+  const token = process.env.META_ACCESS_TOKEN?.trim();
+  if (!token) {
+    // Nur Namen melden, nie Werte — hilft beim Unterscheiden von
+    // "gar nicht gesetzt" und "gesetzt, aber Deploy noch ohne Variable".
+    const vorhanden = Object.keys(process.env)
+      .filter((k) => k.startsWith("META_") && process.env[k])
+      .sort();
+    const hinweis =
+      vorhanden.length > 0
+        ? `Gefunden wurden nur: ${vorhanden.join(", ")}.`
+        : "Es ist keine einzige META_-Variable sichtbar.";
+    throw new Error(
+      `META_ACCESS_TOKEN ist in diesem Deployment nicht gesetzt. ${hinweis} ` +
+        "Variable in Vercel fuer Production anlegen und danach neu deployen — " +
+        "bestehende Deployments uebernehmen neue Variablen nicht automatisch.",
+    );
+  }
 
   const pages = await resolvePages(token);
   if (pages.length === 0) {
