@@ -118,6 +118,25 @@ export async function importMetaLeadById(leadId: string): Promise<void> {
 
 export type ImportResult = { imported: number; seen: number; forms: number };
 
+/** Graph-Fehler in eine Meldung übersetzen, die im Portal weiterhilft. */
+async function graphError(step: string, res: Response): Promise<string> {
+  const body = await res.text();
+  let detail = body.slice(0, 200);
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string; code?: number } };
+    if (parsed.error?.message) detail = parsed.error.message;
+    if (parsed.error?.code === 190) {
+      return `${step} fehlgeschlagen: Der Meta-Token ist abgelaufen oder ungültig. Bitte in Vercel einen neuen META_ACCESS_TOKEN hinterlegen.`;
+    }
+    if (parsed.error?.code === 200 || parsed.error?.code === 10) {
+      return `${step} fehlgeschlagen: Dem Token fehlt die Berechtigung leads_retrieval. In der Meta-App den Anwendungsfall "Erfassung und Verwaltung von Ad-Leads" hinzufügen und den Token neu erzeugen.`;
+    }
+  } catch {
+    // Kein JSON — Rohtext verwenden.
+  }
+  return `${step} fehlgeschlagen: ${detail}`;
+}
+
 /**
  * Holt alle Leads der verbundenen Seite aktiv ab (Pull statt Push).
  * Ohne META_PAGE_ID werden die Seiten des Tokens automatisch ermittelt.
@@ -126,8 +145,8 @@ export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResu
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) throw new Error("META_ACCESS_TOKEN ist nicht gesetzt.");
 
-  const pageIds = await resolvePageIds(token);
-  if (pageIds.length === 0) {
+  const pages = await resolvePages(token);
+  if (pages.length === 0) {
     throw new Error("Keine Facebook-Seite gefunden. META_PAGE_ID setzen oder Token prüfen.");
   }
 
@@ -135,24 +154,26 @@ export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResu
   let seen = 0;
   let forms = 0;
 
-  for (const pageId of pageIds) {
+  for (const page of pages) {
+    // Leads liefert Meta zuverlässig nur gegen den Page Access Token aus.
+    const pageToken = page.token ?? token;
     const formRes = await fetch(
-      `${GRAPH}/${pageId}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(token)}`,
+      `${GRAPH}/${page.id}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(pageToken)}`,
       { cache: "no-store" },
     );
-    if (!formRes.ok) throw new Error(`Formulare laden fehlgeschlagen: ${await formRes.text()}`);
+    if (!formRes.ok) throw new Error(await graphError("Formulare laden", formRes));
     const formData = (await formRes.json()) as { data?: Array<{ id: string }> };
 
     for (const form of formData.data ?? []) {
       forms += 1;
       let url:
         | string
-        | undefined = `${GRAPH}/${form.id}/leads?fields=id,form_id,created_time,field_data&limit=${limitPerForm}&access_token=${encodeURIComponent(token)}`;
+        | undefined = `${GRAPH}/${form.id}/leads?fields=id,form_id,created_time,field_data&limit=${limitPerForm}&access_token=${encodeURIComponent(pageToken)}`;
 
       // Graph paginiert; wir folgen den next-Links bis zum Ende.
       while (url) {
         const leadRes = await fetch(url, { cache: "no-store" });
-        if (!leadRes.ok) throw new Error(`Leads laden fehlgeschlagen: ${await leadRes.text()}`);
+        if (!leadRes.ok) throw new Error(await graphError("Leads laden", leadRes));
         const payload = (await leadRes.json()) as {
           data?: GraphLead[];
           paging?: { next?: string };
@@ -169,18 +190,43 @@ export async function importAllMetaLeads(limitPerForm = 200): Promise<ImportResu
   return { imported, seen, forms };
 }
 
-async function resolvePageIds(token: string): Promise<string[]> {
+type ResolvedPage = { id: string; token?: string };
+
+/**
+ * Ermittelt die Seiten samt zugehörigem Page Access Token. Der Systemnutzer-
+ * Token darf Leads nicht immer selbst lesen — der Page Token schon.
+ */
+async function resolvePages(token: string): Promise<ResolvedPage[]> {
   const configured = (process.env.META_PAGE_ID ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (configured.length > 0) return configured;
+
+  if (configured.length > 0) {
+    return Promise.all(
+      configured.map(async (id) => ({ id, token: await fetchPageToken(id, token) })),
+    );
+  }
 
   const res = await fetch(
-    `${GRAPH}/me/accounts?fields=id,name&limit=50&access_token=${encodeURIComponent(token)}`,
+    `${GRAPH}/me/accounts?fields=id,name,access_token&limit=50&access_token=${encodeURIComponent(token)}`,
     { cache: "no-store" },
   );
   if (!res.ok) return [];
-  const data = (await res.json()) as { data?: Array<{ id: string }> };
-  return (data.data ?? []).map((p) => p.id);
+  const data = (await res.json()) as { data?: Array<{ id: string; access_token?: string }> };
+  return (data.data ?? []).map((p) => ({ id: p.id, token: p.access_token }));
+}
+
+/** Page Access Token nachladen; bei Fehlschlag wird der Ausgangstoken genutzt. */
+async function fetchPageToken(pageId: string, token: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(
+      `${GRAPH}/${pageId}?fields=access_token&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return undefined;
+    return ((await res.json()) as { access_token?: string }).access_token;
+  } catch {
+    return undefined;
+  }
 }

@@ -66,6 +66,6 @@ export async function importMetaLeadsAction() {
     if (error && typeof error === "object" && "digest" in error) throw error; // Next-Redirect
     const message = error instanceof Error ? error.message : "Unbekannter Fehler";
     console.error("[meta-import]", message);
-    redirect(`/leads?import=fehler&meldung=${encodeURIComponent(message.slice(0, 180))}`);
+    redirect(`/leads?import=fehler&meldung=${encodeURIComponent(message.slice(0, 320))}`);
   }
 }
