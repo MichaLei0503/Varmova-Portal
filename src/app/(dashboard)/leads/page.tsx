@@ -123,7 +123,7 @@ function whatsappText(name: string): string {
     "Gerne können Sie mir auch einfach ein Zeitfenster hier per WhatsApp schreiben — dann melde ich mich persönlich bei Ihnen.",
     "",
     "Mit freundlichen Grüßen",
-    "Michael",
+    "Michael Leibiger",
     "Vertrieb und Kundenbetreuung Varmova",
   ].join("\n");
 }
