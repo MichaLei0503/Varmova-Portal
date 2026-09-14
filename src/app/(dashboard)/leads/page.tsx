@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { MessageCircle, RefreshCw } from "lucide-react";
 import { redirect } from "next/navigation";
 import { LeadSegment, LeadSource, LeadStatus, Role } from "@prisma/client";
 import { PageHeader, Card, CardTitle, Button, Input } from "@/components/ui";
@@ -91,6 +91,54 @@ function extraAnswers(answers: Answer[], segment: LeadSegment | null): Answer[] 
       !VERIFIED_KEY.test(answer.key) &&
       !CONTACT_KEY.test(answer.key) &&
       !(segment !== "B2B" && B2C_KEY.test(answer.key)),
+  );
+}
+
+/** Terminbuchung für die Erstansprache. Über Vercel überschreibbar. */
+const BOOKING_URL =
+  process.env.NEXT_PUBLIC_BOOKING_URL || "https://calendly.com/m-leibiger-varmova/30min";
+
+/**
+ * Rufnummer in das wa.me-Format bringen (nur Ziffern, mit Landesvorwahl).
+ * "0178 …" wird als deutsche Nummer gelesen.
+ */
+function whatsappNumber(phone: string): string | null {
+  const digits = phone.replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) return digits.slice(1) || null;
+  if (digits.startsWith("00")) return digits.slice(2) || null;
+  if (digits.startsWith("0")) return `49${digits.slice(1)}`;
+  return digits || null;
+}
+
+/** Erstansprache nach Lead-Eingang — Sie-Form, ohne Emoji (CI). */
+function whatsappText(name: string): string {
+  const anrede = name && !name.startsWith("Meta-Lead") ? `Guten Tag ${name},` : "Guten Tag,";
+  return [
+    anrede,
+    "",
+    "vielen Dank für Ihr Interesse an einer Kooperation mit Varmova und unserer innovativen Heiztechnologie.",
+    "",
+    `Unter diesem Link können Sie sich direkt einen kurzen Termin aussuchen: ${BOOKING_URL}`,
+    "",
+    "Gerne können Sie mir auch einfach ein Zeitfenster hier per WhatsApp schreiben — dann melde ich mich persönlich bei Ihnen.",
+    "",
+    "Mit freundlichen Grüßen",
+    "Ihr Team von Varmova",
+  ].join("\n");
+}
+
+function WhatsAppLink({ name, phone }: { name: string; phone: string | null }) {
+  const number = phone ? whatsappNumber(phone) : null;
+  if (!number) return null;
+  return (
+    <a
+      href={`https://wa.me/${number}?text=${encodeURIComponent(whatsappText(name))}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-[#25D366]/12 px-2.5 py-1 text-[11px] font-semibold text-[#0f7a5f] transition hover:bg-[#25D366]/25"
+    >
+      <MessageCircle className="h-3 w-3" /> WhatsApp
+    </a>
   );
 }
 
@@ -309,15 +357,19 @@ export default async function LeadsPage({
                   {activeTab === "b2b" ? (
                     <>
                       <td className="px-5 py-3 font-medium text-night">{lead.company ?? "—"}</td>
-                      <td className="px-5 py-3 whitespace-nowrap"><PhoneLink phone={lead.phone} /></td>
+                      <td className="px-5 py-3 whitespace-nowrap">
+                        <PhoneLink phone={lead.phone} className="block" />
+                        <WhatsAppLink name={lead.name} phone={lead.phone} />
+                      </td>
                       <td className="px-5 py-3"><MailLink email={lead.email} /></td>
                       <td className="px-5 py-3"><FactList facts={extras} /></td>
                     </>
                   ) : activeTab === "b2c" ? (
                     <>
                       <td className="px-5 py-3">
-                        <PhoneLink phone={lead.phone} />
+                        <PhoneLink phone={lead.phone} className="block" />
                         <MailLink email={lead.email} className="mt-0.5 block" />
+                        <WhatsAppLink name={lead.name} phone={lead.phone} />
                       </td>
                       <td className="px-5 py-3 text-slate-600">{lead.city ?? "—"}</td>
                       <td className="px-5 py-3 text-slate-600">{lead.postalCode ?? "—"}</td>
@@ -327,8 +379,9 @@ export default async function LeadsPage({
                   ) : (
                     <>
                       <td className="px-5 py-3">
-                        <PhoneLink phone={lead.phone} />
+                        <PhoneLink phone={lead.phone} className="block" />
                         <MailLink email={lead.email} className="mt-0.5 block" />
+                        <WhatsAppLink name={lead.name} phone={lead.phone} />
                       </td>
                       <td className="px-5 py-3"><FactList facts={facts} /></td>
                     </>
