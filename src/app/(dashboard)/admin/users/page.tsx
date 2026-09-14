@@ -1,5 +1,6 @@
 import { Role } from "@prisma/client";
 import { updateUserAccessAction } from "@/app/(dashboard)/actions";
+import { CreateUserForm } from "@/components/create-user-form";
 import { Badge, Button, Card, PageHeader, Select } from "@/components/ui";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -8,14 +9,28 @@ import { roleLabels } from "@/lib/utils";
 export default async function AdminUsersPage() {
   await requireRole(["VARMOVA_ADMIN"]);
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "asc" },
-    include: { organization: true },
-  });
+  const [users, organizations] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+      include: { organization: true },
+    }),
+    prisma.organization.findMany({
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, type: true },
+    }),
+  ]);
+
+  const organizationOptions = organizations.map((org) => ({
+    id: org.id,
+    name: `${org.name} (${org.type})`,
+  }));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Benutzerverwaltung" description="Rollen, Aktivstatus und Organisationszuordnung zentral verwalten." />
+      <PageHeader title="Benutzerverwaltung" description="Benutzer anlegen, Rollen, Aktivstatus und Organisationszuordnung zentral verwalten." />
+
+      <CreateUserForm organizations={organizationOptions} />
+
       <div className="grid gap-4">
         {users.map((user) => (
           <Card key={user.id} className="space-y-4">

@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LeadSource, LeadStatus, Role } from "@prisma/client";
+import { LeadSegment, LeadSource, LeadStatus, Role } from "@prisma/client";
 import { PageHeader, Card, CardTitle, Button, Input } from "@/components/ui";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -33,15 +34,38 @@ const STATUS_STYLE: Record<LeadStatus, string> = {
   VERLOREN: "bg-rose-100 text-rose-700",
 };
 
-export default async function LeadsPage() {
+const TABS = [
+  { key: "alle", label: "Alle" },
+  { key: "b2b", label: "B2B" },
+  { key: "b2c", label: "B2C" },
+] as const;
+
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ segment?: string }>;
+}) {
   const session = await requireAuth();
   if (!CRM_ROLES.includes(session.user.role)) redirect("/unauthorized");
 
-  const [leads, statusCounts] = await Promise.all([
-    prisma.lead.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
-    prisma.lead.groupBy({ by: ["status"], _count: true }),
+  const { segment: segmentParam } = await searchParams;
+  const activeTab = TABS.find((t) => t.key === segmentParam)?.key ?? "alle";
+  const segmentFilter =
+    activeTab === "b2b" ? LeadSegment.B2B : activeTab === "b2c" ? LeadSegment.B2C : undefined;
+  const where = segmentFilter ? { segment: segmentFilter } : {};
+
+  const [leads, statusCounts, segmentCounts] = await Promise.all([
+    prisma.lead.findMany({ where, orderBy: { createdAt: "desc" }, take: 200 }),
+    prisma.lead.groupBy({ by: ["status"], where, _count: true }),
+    prisma.lead.groupBy({ by: ["segment"], _count: true }),
   ]);
   const count = (s: LeadStatus) => statusCounts.find((c) => c.status === s)?._count ?? 0;
+  const segCount = (s: LeadSegment | null) =>
+    segmentCounts.find((c) => c.segment === s)?._count ?? 0;
+  const tabCount = (key: (typeof TABS)[number]["key"]) =>
+    key === "b2b" ? segCount(LeadSegment.B2B)
+    : key === "b2c" ? segCount(LeadSegment.B2C)
+    : segmentCounts.reduce((sum, c) => sum + c._count, 0);
 
   return (
     <div className="space-y-6">
@@ -49,6 +73,26 @@ export default async function LeadsPage() {
         title="Leads"
         description="Anfragen aus Funnel, Meta Ads, Webseite und manueller Erfassung — vom Erstkontakt bis zum Termin."
       />
+
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((tab) => {
+          const isActive = tab.key === activeTab;
+          return (
+            <Link
+              key={tab.key}
+              href={tab.key === "alle" ? "/leads" : `/leads?segment=${tab.key}`}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                isActive
+                  ? "bg-night text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {tab.label}
+              <span className={isActive ? "text-copper" : "text-slate-400"}>{tabCount(tab.key)}</span>
+            </Link>
+          );
+        })}
+      </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Neu</p><p className="mt-1 text-2xl font-semibold text-night">{count("NEU")}</p></Card>
@@ -90,7 +134,9 @@ export default async function LeadsPage() {
             <tbody>
               {leads.length === 0 ? (
                 <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-400">
-                  Noch keine Leads. Sobald die Meta-Schnittstelle verbunden ist, laufen Anfragen hier automatisch ein.
+                  {activeTab === "alle"
+                    ? "Noch keine Leads. Sobald die Meta-Schnittstelle verbunden ist, laufen Anfragen hier automatisch ein."
+                    : `Keine ${activeTab.toUpperCase()}-Leads in dieser Ansicht.`}
                 </td></tr>
               ) : leads.map((lead) => (
                 <tr key={lead.id} className="border-b border-slate-100 align-top last:border-0">

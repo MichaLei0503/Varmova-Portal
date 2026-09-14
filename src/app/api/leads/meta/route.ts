@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { LeadSource } from "@prisma/client";
+import { LeadSegment, LeadSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -114,6 +114,10 @@ async function importMetaLead(leadId: string) {
     [pick("first_name", "vorname"), pick("last_name", "nachname")].filter(Boolean).join(" ") ??
     `Meta-Lead ${leadId}`;
 
+  const company = pick("company_name", "firma", "unternehmen", "betrieb");
+  const companyType = pick("betriebstyp", "betrieb_beschreibt", "gewerk", "branche", "company_type");
+  const segment = resolveSegment(data.form_id, company, companyType);
+
   await prisma.lead.upsert({
     where: { metaLeadId: leadId },
     update: {},
@@ -125,10 +129,43 @@ async function importMetaLead(leadId: string) {
       postalCode: pick("zip_code", "zip", "plz", "postal_code", "postleitzahl"),
       currentHeating: pick("aktuelle_heizung", "heizung", "heizsystem", "current_heating"),
       timeframe: pick("realisierungszeitraum", "zeitraum", "wann", "timeframe", "umsetzung"),
+      segment,
+      company: company ?? null,
       source: LeadSource.META,
       metaLeadId: leadId,
       metaFormId: data.form_id,
       raw: fields,
     },
   });
+}
+
+/**
+ * Segment eines Meta-Leads bestimmen — in dieser Reihenfolge:
+ *
+ * 1. Explizite Zuordnung per Formular-ID über die Umgebungsvariablen
+ *    META_B2B_FORM_IDS / META_B2C_FORM_IDS (kommagetrennt). Das ist der
+ *    verlässliche Weg, sobald mehrere Kampagnen parallel laufen.
+ * 2. Inhaltliche Erkennung: Firma oder Betriebstyp ausgefüllt → B2B.
+ * 3. Fallback über META_DEFAULT_SEGMENT (Default: B2B, da die laufenden
+ *    Kampagnen Partnerbetriebe adressieren).
+ */
+function resolveSegment(
+  formId: string | undefined,
+  company: string | undefined,
+  companyType: string | undefined,
+): LeadSegment {
+  const ids = (value: string | undefined) =>
+    (value ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  if (formId) {
+    if (ids(process.env.META_B2B_FORM_IDS).includes(formId)) return LeadSegment.B2B;
+    if (ids(process.env.META_B2C_FORM_IDS).includes(formId)) return LeadSegment.B2C;
+  }
+  if (company || companyType) return LeadSegment.B2B;
+  return process.env.META_DEFAULT_SEGMENT?.toUpperCase() === "B2C"
+    ? LeadSegment.B2C
+    : LeadSegment.B2B;
 }
