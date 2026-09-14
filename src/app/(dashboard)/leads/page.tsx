@@ -64,6 +64,68 @@ const TABS = [
   { key: "b2c", label: "B2C" },
 ] as const;
 
+/**
+ * Spalten je Reiter. B2B-Formulare fragen Firma und Betrieb ab, B2C-Formulare
+ * Ort, Heizung und Zeitraum — jede Ansicht zeigt nur, was wirklich erhoben wird.
+ */
+const COLUMNS: Record<(typeof TABS)[number]["key"], string[]> = {
+  alle: ["Kunde", "Kontakt", "Angaben", "Quelle", "Eingang", "Status"],
+  b2b: ["Ansprechpartner", "Firma", "Telefon", "E-Mail", "Angaben aus dem Formular", "Quelle", "Eingang", "Status"],
+  b2c: ["Kunde", "Kontakt", "Ort", "PLZ", "Aktuelle Heizung", "Zeitraum", "Quelle", "Eingang", "Status"],
+};
+
+const VERIFIED_KEY = /_verified$/;
+const CONTACT_KEY =
+  /^(full_name|first_name|last_name|name|e-?mail|phone_number|phone|telefon|company_name|firma|unternehmen|betriebsname)$/;
+const B2C_KEY =
+  /^(city|ort|stadt|wohnort|zip_code|zip|plz|postal_code|postleitzahl|aktuelle_heizung|heizung|heizsystem|current_heating|realisierungszeitraum|zeitraum|timeframe|umsetzung|wann)$/;
+
+/**
+ * Antworten, die nicht schon in einer eigenen Spalte stehen. Bei B2B bleiben
+ * Orts- und Heizungsfragen erhalten, falls das Formular sie doch stellt.
+ */
+function extraAnswers(answers: Answer[], segment: LeadSegment | null): Answer[] {
+  return answers.filter(
+    (answer) =>
+      answer.value &&
+      !VERIFIED_KEY.test(answer.key) &&
+      !CONTACT_KEY.test(answer.key) &&
+      !(segment !== "B2B" && B2C_KEY.test(answer.key)),
+  );
+}
+
+function PhoneLink({ phone, className = "" }: { phone: string | null; className?: string }) {
+  if (!phone) return <span className={`text-slate-400 ${className}`}>—</span>;
+  return (
+    <a href={`tel:${phone.replace(/\s/g, "")}`} className={`text-night hover:text-[#8a5a2a] ${className}`}>
+      {phone}
+    </a>
+  );
+}
+
+function MailLink({ email, className = "" }: { email: string | null; className?: string }) {
+  if (!email) return <span className={`text-slate-400 ${className}`}>—</span>;
+  return (
+    <a href={`mailto:${email}`} className={`break-all text-night hover:text-[#8a5a2a] ${className}`}>
+      {email}
+    </a>
+  );
+}
+
+function FactList({ facts }: { facts: Answer[] }) {
+  if (facts.length === 0) return <span className="text-slate-400">—</span>;
+  return (
+    <dl className="space-y-1.5">
+      {facts.map((fact) => (
+        <div key={fact.key}>
+          <dt className="text-[11px] uppercase tracking-wide text-slate-400">{fact.label}</dt>
+          <dd className="text-sm text-night">{fact.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export default async function LeadsPage({
   searchParams,
 }: {
@@ -171,25 +233,29 @@ export default async function LeadsPage({
           <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
-                <th className="px-5 py-3">Kunde</th>
-                <th className="px-5 py-3">Ort</th>
-                <th className="px-5 py-3">PLZ</th>
-                <th className="px-5 py-3">Aktuelle Heizung</th>
-                <th className="px-5 py-3">Zeitraum</th>
-                <th className="px-5 py-3">Quelle</th>
-                <th className="px-5 py-3">Eingang</th>
-                <th className="px-5 py-3">Status</th>
+                {COLUMNS[activeTab].map((column) => (
+                  <th key={column} className="px-5 py-3">{column}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {leads.length === 0 ? (
-                <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-400">
+                <tr><td colSpan={COLUMNS[activeTab].length} className="px-5 py-10 text-center text-slate-400">
                   {activeTab === "alle"
                     ? "Noch keine Leads. Sobald die Meta-Schnittstelle verbunden ist, laufen Anfragen hier automatisch ein."
                     : `Keine ${activeTab.toUpperCase()}-Leads in dieser Ansicht.`}
                 </td></tr>
               ) : leads.map((lead) => {
                 const answers = readAnswers(lead.raw);
+                const extras = extraAnswers(answers, lead.segment);
+                const facts =
+                  lead.segment === "B2B"
+                    ? extras
+                    : ([
+                        { key: "ort", label: "Ort", value: [lead.postalCode, lead.city].filter(Boolean).join(" ") },
+                        { key: "heizung", label: "Aktuelle Heizung", value: lead.currentHeating ?? "" },
+                        { key: "zeitraum", label: "Zeitraum", value: lead.timeframe ?? "" },
+                      ].filter((f) => f.value) as Answer[]);
                 return (
                 <tr key={lead.id} className="border-b border-slate-100 align-top last:border-0">
                   <td className="px-5 py-3">
@@ -201,8 +267,9 @@ export default async function LeadsPage({
                         </span>
                       ) : null}
                     </p>
-                    {lead.company ? <p className="text-xs text-slate-500">{lead.company}</p> : null}
-                    <p className="text-xs text-slate-400">{[lead.phone, lead.email].filter(Boolean).join(" · ") || "—"}</p>
+                    {lead.company && activeTab !== "b2b" ? (
+                      <p className="text-xs text-slate-500">{lead.company}</p>
+                    ) : null}
                     {lead.source === "FUNNEL" ? (
                       <p className={`mt-0.5 text-[11px] font-medium ${lead.doiConfirmedAt ? "text-emerald-600" : "text-amber-600"}`}>
                         {lead.doiConfirmedAt ? "E-Mail bestätigt (Double-Opt-in)" : "E-Mail-Bestätigung ausstehend"}
@@ -238,10 +305,34 @@ export default async function LeadsPage({
                       </details>
                     ) : null}
                   </td>
-                  <td className="px-5 py-3 text-slate-600">{lead.city ?? "—"}</td>
-                  <td className="px-5 py-3 text-slate-600">{lead.postalCode ?? "—"}</td>
-                  <td className="px-5 py-3 text-slate-600">{lead.currentHeating ?? "—"}</td>
-                  <td className="px-5 py-3 text-slate-600">{lead.timeframe ?? "—"}</td>
+
+                  {activeTab === "b2b" ? (
+                    <>
+                      <td className="px-5 py-3 font-medium text-night">{lead.company ?? "—"}</td>
+                      <td className="px-5 py-3 whitespace-nowrap"><PhoneLink phone={lead.phone} /></td>
+                      <td className="px-5 py-3"><MailLink email={lead.email} /></td>
+                      <td className="px-5 py-3"><FactList facts={extras} /></td>
+                    </>
+                  ) : activeTab === "b2c" ? (
+                    <>
+                      <td className="px-5 py-3">
+                        <PhoneLink phone={lead.phone} />
+                        <MailLink email={lead.email} className="mt-0.5 block" />
+                      </td>
+                      <td className="px-5 py-3 text-slate-600">{lead.city ?? "—"}</td>
+                      <td className="px-5 py-3 text-slate-600">{lead.postalCode ?? "—"}</td>
+                      <td className="px-5 py-3 text-slate-600">{lead.currentHeating ?? "—"}</td>
+                      <td className="px-5 py-3 text-slate-600">{lead.timeframe ?? "—"}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-5 py-3">
+                        <PhoneLink phone={lead.phone} />
+                        <MailLink email={lead.email} className="mt-0.5 block" />
+                      </td>
+                      <td className="px-5 py-3"><FactList facts={facts} /></td>
+                    </>
+                  )}
                   <td className="px-5 py-3">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${lead.source === "META" || lead.source === "FUNNEL" ? "bg-night text-copper" : "bg-slate-100 text-slate-600"}`}>
                       {SOURCE_LABEL[lead.source]}
