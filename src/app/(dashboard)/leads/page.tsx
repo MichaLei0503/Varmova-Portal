@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { redirect } from "next/navigation";
 import { LeadSegment, LeadSource, LeadStatus, Role } from "@prisma/client";
 import { PageHeader, Card, CardTitle, Button, Input } from "@/components/ui";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createLeadAction, updateLeadStatusAction } from "./actions";
+import { createLeadAction, importMetaLeadsAction, updateLeadStatusAction } from "./actions";
 
 const CRM_ROLES: Role[] = ["VP", "VP_ADMIN", "VARMOVA_ADMIN", "VARMOVA_PRODUCTION"];
 
@@ -43,12 +44,13 @@ const TABS = [
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ segment?: string }>;
+  searchParams: Promise<{ segment?: string; import?: string; neu?: string; gesamt?: string; formulare?: string; meldung?: string }>;
 }) {
   const session = await requireAuth();
   if (!CRM_ROLES.includes(session.user.role)) redirect("/unauthorized");
 
-  const { segment: segmentParam } = await searchParams;
+  const sp = await searchParams;
+  const { segment: segmentParam } = sp;
   const activeTab = TABS.find((t) => t.key === segmentParam)?.key ?? "alle";
   const segmentFilter =
     activeTab === "b2b" ? LeadSegment.B2B : activeTab === "b2c" ? LeadSegment.B2C : undefined;
@@ -72,7 +74,30 @@ export default async function LeadsPage({
       <PageHeader
         title="Leads"
         description="Anfragen aus Funnel, Meta Ads, Webseite und manueller Erfassung — vom Erstkontakt bis zum Termin."
+        action={
+          <form action={importMetaLeadsAction}>
+            <Button type="submit" variant="outline" className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Meta-Leads abrufen
+            </Button>
+          </form>
+        }
       />
+
+      {sp.import === "ok" ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">
+          <strong>{sp.neu ?? "0"} neue Leads importiert.</strong> {sp.gesamt ?? "0"} Leads aus{" "}
+          {sp.formulare ?? "0"} Formular(en) geprüft — bereits vorhandene wurden übersprungen.
+        </div>
+      ) : null}
+      {sp.import === "fehler" ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
+          <strong>Abruf fehlgeschlagen.</strong> {sp.meldung ?? "Unbekannter Fehler"}
+          <span className="mt-1 block text-xs text-rose-700">
+            Prüfen: Ist META_ACCESS_TOKEN in Vercel gesetzt und hat der Token die Berechtigung
+            leads_retrieval?
+          </span>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((tab) => {
