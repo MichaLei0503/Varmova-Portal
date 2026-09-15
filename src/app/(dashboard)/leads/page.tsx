@@ -130,8 +130,7 @@ function whatsappText(name: string): string {
 
 /** Oeffentlich abrufbare Unterlagen fuer den Versand an Interessenten. */
 const UNTERLAGEN = [
-  { titel: "Produkterklärung", pfad: "/unterlagen/varmi-produkterklaerung.pdf" },
-  { titel: "Warum Varmi", pfad: "/unterlagen/warum-varmi.pdf" },
+  { titel: "Varmova Broschüre inkl. technischem Datenblatt", pfad: "/unterlagen/varmova-broschuere.pdf" },
 ];
 
 /**
@@ -148,7 +147,7 @@ function emailBody(name: string, baseUrl: string): string {
     "",
     "Kurz, worum es geht: Der Varmi ist eine elektrische Heizzentrale mit Thermofluid-Wärmespeicher — keine Wärmepumpe. Keine Außeneinheit, kein Kältemittelkreislauf, kein Erdaushub. Für Ihren Betrieb bedeutet das rund 6.500 Euro Rohertrag pro Montagetag, und die Kunden liefern wir Ihnen dazu.",
     "",
-    "Unsere Unterlagen finden Sie hier:",
+    "Unsere Broschüre mit allen technischen Daten finden Sie hier:",
     ...UNTERLAGEN.map((u) => `${u.titel}: ${baseUrl}${u.pfad}`),
     "",
     "Für ein kurzes Gespräch schlage ich Ihnen zwei Termine vor:",
