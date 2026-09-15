@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageCircle, RefreshCw } from "lucide-react";
+import { Mail, MessageCircle, RefreshCw } from "lucide-react";
 import { redirect } from "next/navigation";
 import { LeadSegment, LeadSource, LeadStatus, Role } from "@prisma/client";
 import { PageHeader, Card, CardTitle, Button, Input } from "@/components/ui";
@@ -128,6 +128,65 @@ function whatsappText(name: string): string {
   ].join("\n");
 }
 
+/** Oeffentlich abrufbare Unterlagen fuer den Versand an Interessenten. */
+const UNTERLAGEN = [
+  { titel: "Produkterklärung", pfad: "/unterlagen/varmi-produkterklaerung.pdf" },
+  { titel: "Warum Varmi", pfad: "/unterlagen/warum-varmi.pdf" },
+];
+
+/**
+ * E-Mail an einen B2B-Lead: Unterlagen plus zwei Terminvorschlaege, die
+ * vor dem Senden per Hand eingetragen werden. Der Pitch fuehrt mit dem
+ * Rohertrag pro Montagetag, nicht mit der Technik.
+ */
+function emailBody(name: string, baseUrl: string): string {
+  const anrede = name && !name.startsWith("Meta-Lead") ? `Guten Tag ${name},` : "Guten Tag,";
+  return [
+    anrede,
+    "",
+    "vielen Dank für Ihr Interesse an einer Kooperation mit Varmova.",
+    "",
+    "Kurz, worum es geht: Der Varmi ist eine elektrische Heizzentrale mit Thermofluid-Wärmespeicher — keine Wärmepumpe. Keine Außeneinheit, kein Kältemittelkreislauf, kein Erdaushub. Für Ihren Betrieb bedeutet das rund 6.500 Euro Rohertrag pro Montagetag, und die Kunden liefern wir Ihnen dazu.",
+    "",
+    "Unsere Unterlagen finden Sie hier:",
+    ...UNTERLAGEN.map((u) => `${u.titel}: ${baseUrl}${u.pfad}`),
+    "",
+    "Für ein kurzes Gespräch schlage ich Ihnen zwei Termine vor:",
+    "1. [Wochentag, TT.MM. um HH:MM Uhr]",
+    "2. [Wochentag, TT.MM. um HH:MM Uhr]",
+    "",
+    `Falls Ihnen beides nicht passt, können Sie sich hier direkt einen Termin aussuchen: ${BOOKING_URL}`,
+    "",
+    "Mit freundlichen Grüßen",
+    "Michael Leibiger",
+    "Vertrieb und Kundenbetreuung Varmova",
+  ].join("\n");
+}
+
+function EmailLink({
+  name,
+  email,
+  baseUrl,
+}: {
+  name: string;
+  email: string | null;
+  baseUrl: string;
+}) {
+  if (!email) return null;
+  const betreff = "Varmova — Ihre Unterlagen und zwei Terminvorschläge";
+  const href =
+    `mailto:${email}?subject=${encodeURIComponent(betreff)}` +
+    `&body=${encodeURIComponent(emailBody(name, baseUrl))}`;
+  return (
+    <a
+      href={href}
+      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-night/8 px-2.5 py-1 text-[11px] font-semibold text-night transition hover:bg-night/15"
+    >
+      <Mail className="h-3 w-3" /> E-Mail-Vorlage
+    </a>
+  );
+}
+
 function WhatsAppLink({ name, phone }: { name: string; phone: string | null }) {
   const number = phone ? whatsappNumber(phone) : null;
   if (!number) return null;
@@ -184,6 +243,12 @@ export default async function LeadsPage({
   if (!CRM_ROLES.includes(session.user.role)) redirect("/unauthorized");
 
   const sp = await searchParams;
+  // Absolute Adresse fuer die Unterlagen-Links in der E-Mail-Vorlage.
+  const baseUrl = (
+    process.env.APP_BASE_URL ||
+    process.env.NEXTAUTH_URL ||
+    "https://partner.varmova.de"
+  ).replace(/\/$/, "");
   const { segment: segmentParam } = sp;
   const activeTab = TABS.find((t) => t.key === segmentParam)?.key ?? "alle";
   const segmentFilter =
@@ -362,7 +427,10 @@ export default async function LeadsPage({
                         <PhoneLink phone={lead.phone} className="block" />
                         <WhatsAppLink name={lead.name} phone={lead.phone} />
                       </td>
-                      <td className="px-5 py-3"><MailLink email={lead.email} /></td>
+                      <td className="px-5 py-3">
+                        <MailLink email={lead.email} className="block" />
+                        <EmailLink name={lead.name} email={lead.email} baseUrl={baseUrl} />
+                      </td>
                       <td className="px-5 py-3"><FactList facts={extras} /></td>
                     </>
                   ) : activeTab === "b2c" ? (
@@ -370,7 +438,10 @@ export default async function LeadsPage({
                       <td className="px-5 py-3">
                         <PhoneLink phone={lead.phone} className="block" />
                         <MailLink email={lead.email} className="mt-0.5 block" />
-                        <WhatsAppLink name={lead.name} phone={lead.phone} />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <WhatsAppLink name={lead.name} phone={lead.phone} />
+                          <EmailLink name={lead.name} email={lead.email} baseUrl={baseUrl} />
+                        </div>
                       </td>
                       <td className="px-5 py-3 text-slate-600">{lead.city ?? "—"}</td>
                       <td className="px-5 py-3 text-slate-600">{lead.postalCode ?? "—"}</td>
@@ -382,7 +453,10 @@ export default async function LeadsPage({
                       <td className="px-5 py-3">
                         <PhoneLink phone={lead.phone} className="block" />
                         <MailLink email={lead.email} className="mt-0.5 block" />
-                        <WhatsAppLink name={lead.name} phone={lead.phone} />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <WhatsAppLink name={lead.name} phone={lead.phone} />
+                          <EmailLink name={lead.name} email={lead.email} baseUrl={baseUrl} />
+                        </div>
                       </td>
                       <td className="px-5 py-3"><FactList facts={facts} /></td>
                     </>

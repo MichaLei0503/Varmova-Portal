@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/datenschutz" ||
     pathname.startsWith("/datenschutz/") ||
     pathname.startsWith("/fonts/") ||
+    pathname.startsWith("/unterlagen/") ||
     pathname === "/api/leads/funnel" ||
     pathname === "/api/leads/confirm"
   ) {
